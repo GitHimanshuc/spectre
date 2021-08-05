@@ -106,7 +106,7 @@ spectre_load_modules() {
     module load charm/6.10.2-mpi-smp
     module load python/anaconda2-4.1.1
     module load pybind11/2.6.1
-    module unload arpack
+    module load arpack
 }
 
 spectre_run_cmake() {
