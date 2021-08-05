@@ -70,8 +70,7 @@ Follow the general instructions, using `frontera` for `SYSTEM_TO_RUN_ON`.
 
 ## Wheeler at Caltech
 
-Follow the general instructions using `wheeler` for `SYSTEM_TO_RUN_ON`, except
-you do not need to install any dependencies, so you can skip steps 5 and 6. You
+Follow the general instructions using `wheeler` for `SYSTEM_TO_RUN_ON`. You
 can optionally compile using LLVM/Clang by sourcing `wheeler_clang.sh` instead
 of `wheeler_gcc.sh`
 
@@ -90,5 +89,4 @@ shell.
 
 ## Ocean at Fullerton
 
-Follow the general instructions, using `ocean` for `SYSTEM_TO_RUN_ON`,
-you do not need to install any dependencies, so you can skip steps 5 and 6.
+Follow the general instructions, using `ocean` for `SYSTEM_TO_RUN_ON`.

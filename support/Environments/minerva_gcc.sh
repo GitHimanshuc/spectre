@@ -74,6 +74,55 @@
 #    ```
 
 spectre_setup_modules() {
+    if [ -z ${SPECTRE_HOME} ]; then
+        echo "You must set SPECTRE_HOME to the cloned SpECTRE directory"
+        return 1
+    fi
+
+    local start_dir=`pwd`
+    dep_dir=`realpath $1`
+    if [ $# != 1 ]; then
+        echo "You must pass one argument to spectre_setup_modules, which"
+        echo "is the directory where you want the dependencies to be built."
+        return 1
+    fi
+    mkdir -p $dep_dir
+    cd $dep_dir
+    mkdir -p $dep_dir/modules
+
+    cd $dep_dir
+
+    if [ -f $dep_dir/arpack/lib64/libarpack.a ]; then
+        echo "arpack is already set up"
+    else
+        echo "Installing arpack..."
+        wget https://github.com/opencollab/arpack-ng/archive/refs/tags/3.8.0.tar.gz
+        tar -xzf 3.8.0.tar.gz
+        mv arpack-ng-3.8.0 arpack-build
+        cd $dep_dir/arpack-build
+        mkdir build
+        cd build
+        cmake -D CMAKE_BUILD_TYPE=Release \
+              -D CMAKE_C_COMPILER=gcc \
+              -D BUILD_SHARED_LIBS=OFF \
+              -D CMAKE_INSTALL_PREFIX=$dep_dir/arpack ..
+        make -j4
+        make install
+        cd $dep_dir
+        rm 3.8.0.tar.gz
+        rm -r arpack-build
+        echo "Installed arpack into $dep_dir/arpack"
+        cat >$dep_dir/modules/arpack <<EOF
+#%Module1.0
+prepend-path LIBRARY_PATH "$dep_dir/arpack/lib64"
+prepend-path LD_LIBRARY_PATH "$dep_dir/arpack/lib64"
+prepend-path CPATH "$dep_dir/arpack/include"
+prepend-path CMAKE_PREFIX_PATH "$dep_dir/arpack/"
+EOF
+    fi
+
+    cd $start_dir
+
     export MODULEPATH="\
 /home/SPACK2021/share/spack/modules/linux-centos7-haswell:$MODULEPATH"
     export MODULEPATH="\
@@ -90,6 +139,7 @@ charmpp-6.10.2-2waqdh24tz4yt5ozy5clhx6ahxjgivwz"
     # Libsharp is installed separately with `-fPIC` since the Spack package
     # doesn't support that option (yet)
     export LIBSHARP_ROOT="/work/nfischer/spectre/libsharp_2021-03-18/auto"
+    module load arpack
 }
 
 spectre_unload_modules() {
