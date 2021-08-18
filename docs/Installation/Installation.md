@@ -39,6 +39,7 @@ all of these dependencies.
 * [HDF5](https://support.hdfgroup.org/HDF5/) (non-mpi version on macOS)
 * [jemalloc](https://github.com/jemalloc/jemalloc)
 * LAPACK
+* [Arpack](https://github.com/opencollab/arpack-ng)
 * [libsharp](https://github.com/Libsharp/libsharp) should be built with
   support disabled for openmp and mpi, as we want all of our parallelism to
   be accomplished via Charm++.
@@ -309,6 +310,7 @@ spack install gsl
 spack install jemalloc # or from your package manager
 spack install libxsmm
 spack install yaml-cpp@develop
+spack install arpack-ng
 ```
 You can also install CMake, OpenBLAS, Boost, and HDF5 from Spack.
 To load the packages you've installed from Spack run `spack load PACKAGE`,
