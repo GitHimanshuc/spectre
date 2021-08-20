@@ -7,10 +7,6 @@ if(NOT ARPACK_ROOT)
   set(ARPACK_ROOT $ENV{ARPACK_ROOT})
 endif()
 
-find_path(ARPACK_INCLUDE_DIR arpack/arpack.h
-  PATH_SUFFIXES include
-  HINTS ${ARPACK_ROOT})
-
 find_library(ARPACK_LIBRARIES
   NAMES arpack
   PATH_SUFFIXES lib64 lib
@@ -20,5 +16,5 @@ include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
   Arpack
   FOUND_VAR ARPACK_FOUND
-  REQUIRED_VARS ARPACK_LIBRARIES ARPACK_INCLUDE_DIR
+  REQUIRED_VARS ARPACK_LIBRARIES
   )
