@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include "ApparentHorizons/TagsTypeAliases.hpp"
 #include "DataStructures/Tensor/TypeAliases.hpp"
@@ -401,7 +402,12 @@ double dimensionful_spin_magnitude(
     const Scalar<DataVector>& spin_function,
     const tnsr::ii<DataVector, 3, Frame>& spatial_metric,
     const StrahlkorperTags::aliases::Jacobian<Frame>& tangents,
-    const YlmSpherepack& ylm, const Scalar<DataVector>& area_element) noexcept;
+    const YlmSpherepack& ylm, const Scalar<DataVector>& area_element,
+    const Scalar<DataVector>& radius,
+    const tnsr::i<DataVector, 3, Frame>& r_hat,
+    const StrahlkorperTags::aliases::Jacobian<Frame>& jacobian,
+    const StrahlkorperTags::aliases::InvHessian<Frame>& inv_hessian,
+    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords) noexcept;
 
 /*!
  * \ingroup SurfacesGroup
@@ -472,4 +478,24 @@ double irreducible_mass(double area) noexcept;
  */
 double christodoulou_mass(double dimensionful_spin_magnitude,
                           double irreducible_mass) noexcept;
+
+// template <typename Fr>
+// std::vector<tnsr::i<DataVector, 2, Frame::Spherical<Fr>>>
+// get_surface_dual_basis(const tnsr::ii<DataVector, 3, Fr>& spatial_metric,
+//                        const StrahlkorperTags::aliases::Jacobian<Fr>&
+//                        tangents, const tnsr::II<DataVector, 2,
+//                        Frame::Spherical<Fr>>&
+//                            inverse_surface_metric) noexcept;
+
+// template <typename Fr>
+// tnsr::I<DataVector, 2, Frame::Spherical<Fr>>
+// get_trace_christoffel_second_kind_angle_free(
+//     const tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>& surface_metric,
+//     const tnsr::II<DataVector, 2, Frame::Spherical<Fr>>&
+//     inverse_surface_metric, const std::vector<tnsr::i<DataVector, 2,
+//     Frame::Spherical<Fr>>>
+//         surface_dual_basis,
+//     const YlmSpherepack& ylm, const Strahlkorper<Fr>& strahlkorper,
+//     const tnsr::ii<DataVector, 3, Fr>& spatial_metric,
+//     const StrahlkorperTags::aliases::Jacobian<Fr>& tangents) noexcept;
 }  // namespace StrahlkorperGr
