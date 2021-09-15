@@ -143,6 +143,7 @@ get_trace_christoffel_second_kind_angle_free(
     const StrahlkorperTags::aliases::InvHessian<Fr>& inv_hessian,
     const StrahlkorperTags::aliases::Vector<Fr>& cartesian_coords) noexcept {
   // Genrate surface_dual_basis
+  // TODO: Should this be changed to tnsr::I?
   std::vector<tnsr::i<DataVector, 3, Frame::Spherical<Fr>>> surface_dual_basis(
       2);
 
@@ -164,13 +165,8 @@ get_trace_christoffel_second_kind_angle_free(
     }
   }
 
-  std::vector<tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>> CoordSecondDeriv;
-  tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>
-      ContractedConnectionCoefficients;
-
   const auto& CoordDeriv = tangents;
   const auto& basis = ylm;
-  // const auto grad_spatial_metric = ylm.gradient(spatial_metric);
 
   std::vector<YlmSpherepack::FirstDeriv> grad_spatial_metric;
 
@@ -217,7 +213,8 @@ get_trace_christoffel_second_kind_angle_free(
     // identity matrix).
   }
 
-  auto ThisCoordSecondDeriv = surface_metric;
+  std::vector<tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>> CoordSecondDeriv;
+  tnsr::ii<DataVector, 2, Frame::Spherical<Fr>> ThisCoordSecondDeriv;
 
   for (size_t j = 0; j < 3; ++j) {
     for (size_t A = 0; A < 2; ++A) {
@@ -284,12 +281,10 @@ get_trace_christoffel_second_kind_angle_free(
     }
   }
 
-  tnsr::I<DataVector, 2, Frame::Spherical<Fr>> Gamma_up =
-      make_with_value<tnsr::I<DataVector, 2, Frame::Spherical<Fr>>>(
-          surface_metric, 0.0);
   tnsr::i<DataVector, 2, Frame::Spherical<Fr>> Gamma_down =
       make_with_value<tnsr::i<DataVector, 2, Frame::Spherical<Fr>>>(
           surface_metric, 0.0);
+          
   for (size_t C = 0; C < 2; ++C) {
     for (size_t A = 0; A < 2; ++A) {
       for (size_t B = 0; B < 2; ++B) {
@@ -308,6 +303,10 @@ get_trace_christoffel_second_kind_angle_free(
       }
     }
   }
+
+  tnsr::I<DataVector, 2, Frame::Spherical<Fr>> Gamma_up =
+      make_with_value<tnsr::I<DataVector, 2, Frame::Spherical<Fr>>>(
+          surface_metric, 0.0);
 
   for (size_t A = 0; A < 2; ++A) {
     for (size_t B = 0; B < 2; ++B) {
