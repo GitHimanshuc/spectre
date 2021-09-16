@@ -401,7 +401,12 @@ double dimensionful_spin_magnitude(
     const Scalar<DataVector>& spin_function,
     const tnsr::ii<DataVector, 3, Frame>& spatial_metric,
     const StrahlkorperTags::aliases::Jacobian<Frame>& tangents,
-    const YlmSpherepack& ylm, const Scalar<DataVector>& area_element) noexcept;
+    const YlmSpherepack& ylm, const Scalar<DataVector>& area_element,
+    const Scalar<DataVector>& radius,
+    const tnsr::i<DataVector, 3, Frame>& r_hat,
+    const StrahlkorperTags::aliases::Jacobian<Frame>& jacobian,
+    const StrahlkorperTags::aliases::InvHessian<Frame>& inv_hessian,
+    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords) noexcept;
 
 /*!
  * \ingroup SurfacesGroup

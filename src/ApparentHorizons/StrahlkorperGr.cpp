@@ -7,9 +7,12 @@
 #include <cmath>  // IWYU pragma: keep
 #include <cstddef>
 #include <utility>
+#include <vector>
 
 #include "ApparentHorizons/SpherepackIterator.hpp"
 #include "ApparentHorizons/Strahlkorper.hpp"
+#include "ApparentHorizons/Tags.hpp"
+#include "ApparentHorizons/TagsTypeAliases.hpp"
 #include "ApparentHorizons/YlmSpherepack.hpp"
 #include "DataStructures/DataVector.hpp"
 #include "DataStructures/Matrix.hpp"
@@ -26,7 +29,6 @@
 #include "Utilities/Gsl.hpp"
 #include "Utilities/MakeWithValue.hpp"
 #include "Utilities/StdArrayHelpers.hpp"
-
 // IWYU pragma: no_include <complex>
 
 // IWYU pragma: no_forward_declare Strahlkorper
@@ -39,29 +41,25 @@ namespace {
 template <typename Fr>
 tnsr::ii<DataVector, 2, Frame::Spherical<Fr>> get_surface_metric(
     const tnsr::ii<DataVector, 3, Fr>& spatial_metric,
-    const StrahlkorperTags::aliases::Jacobian<Fr>& tangents,
-    const Scalar<DataVector>& sin_theta) noexcept {
+    const StrahlkorperTags::aliases::Jacobian<Fr>& tangents) noexcept {
   auto surface_metric =
       make_with_value<tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>>(
           get<0, 0>(spatial_metric), 0.0);
   for (size_t i = 0; i < 3; ++i) {
     for (size_t j = 0; j < 3; ++j) {
-      get<0, 1>(surface_metric) += spatial_metric.get(i, j) *
-                                   tangents.get(i, 0) * tangents.get(j, 1) *
-                                   get(sin_theta);
+      get<0, 1>(surface_metric) +=
+          spatial_metric.get(i, j) * tangents.get(i, 0) * tangents.get(j, 1);
     }
     // Use symmetry to sum over fewer terms for the 0,0 and 1,1 components
     get<0, 0>(surface_metric) +=
         spatial_metric.get(i, i) * square(tangents.get(i, 0));
-    get<1, 1>(surface_metric) += spatial_metric.get(i, i) *
-                                 square(tangents.get(i, 1)) *
-                                 square(get(sin_theta));
+    get<1, 1>(surface_metric) +=
+        spatial_metric.get(i, i) * square(tangents.get(i, 1));
     for (size_t j = i + 1; j < 3; ++j) {
       get<0, 0>(surface_metric) += 2.0 * spatial_metric.get(i, j) *
                                    tangents.get(i, 0) * tangents.get(j, 0);
       get<1, 1>(surface_metric) += 2.0 * spatial_metric.get(i, j) *
-                                   tangents.get(i, 1) * tangents.get(j, 1) *
-                                   square(get(sin_theta));
+                                   tangents.get(i, 1) * tangents.get(j, 1);
     }
   }
   return surface_metric;
@@ -125,6 +123,191 @@ tnsr::I<DataVector, 2, Frame::Spherical<Fr>> get_trace_christoffel_second_kind(
       inverse_surface_metric);
 }
 
+// Compute the trace of Christoffel 2nd kind on the horizon
+template <typename Fr>
+tnsr::I<DataVector, 2, Frame::Spherical<Fr>>
+get_trace_christoffel_second_kind_angle_free(
+    const tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>& surface_metric,
+    const tnsr::II<DataVector, 2, Frame::Spherical<Fr>>& inverse_surface_metric,
+    const YlmSpherepack& ylm, const tnsr::ii<DataVector, 3, Fr>& spatial_metric,
+    const StrahlkorperTags::aliases::Jacobian<Fr>& tangents,
+    const Scalar<DataVector>& radius, const tnsr::i<DataVector, 3, Fr>& r_hat,
+    const StrahlkorperTags::aliases::Jacobian<Fr>& jacobian,
+    const StrahlkorperTags::aliases::InvHessian<Fr>& inv_hessian,
+    const StrahlkorperTags::aliases::Vector<Fr>& cartesian_coords) noexcept {
+  // Genrate surface_dual_basis
+  // TODO: Should this be changed to tnsr::I?
+  std::vector<tnsr::i<DataVector, 3, Frame::Spherical<Fr>>> surface_dual_basis(
+      2);
+
+  for (size_t i = 0; i < surface_dual_basis.size(); i++) {
+    surface_dual_basis[i] =
+        make_with_value<tnsr::i<DataVector, 3, Frame::Spherical<Fr>>>(r_hat,
+                                                                      0.0);
+  }
+
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t A = 0; A < 2; A++) {
+      for (size_t j = 0; j < 3; ++j) {
+        for (size_t B = 0; B < 2; B++) {
+          surface_dual_basis[A].get(i) += spatial_metric.get(i, j) *
+                                          inverse_surface_metric.get(A, B) *
+                                          tangents.get(j, B);
+        }
+      }
+    }
+  }
+
+  const auto& CoordDeriv = tangents;
+  const auto& basis = ylm;
+
+  std::vector<YlmSpherepack::FirstDeriv> grad_spatial_metric;
+
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t j = 0; j < 3; ++j) {
+      grad_spatial_metric.push_back(ylm.gradient(spatial_metric.get(i, j)));
+      // access via GradGspatial[i+3*j](A)
+    }
+  }
+
+  const auto first_second_derivative_radius =
+      ylm.first_and_second_derivative(get(radius));
+
+  auto hessian = inv_hessian;
+  for (size_t k = 0; k < 3; ++k) {
+    for (size_t A = 0; A < 2; ++A) {
+      for (size_t B = 0; B < 2; ++B) {
+        for (size_t l = 0; l < 3; ++l) {
+          for (size_t m = 0; m < 3; ++m) {
+            for (size_t C = 0; C < 2; ++C) {
+              hessian.get(k, A, B) -= jacobian.get(l, A) * jacobian.get(m, B) *
+                                      jacobian.get(k, C) *
+                                      inv_hessian.get(C, l, m);
+            }
+          }
+        }
+      }
+    }
+
+    hessian.get(k, 0, 0) -= r_hat.get(k);
+    hessian.get(k, 1, 1) -= r_hat.get(k);
+    // These two extra terms are not obvious. Or at least, they certainly
+    // weren't obvious to me. The above identity assumes that
+    // the Jacobian is uniquely invertible. In this case, because we're
+    // talking about a transformation from 3 coordinates to 2, that isn't
+    // the case. (SurfaceInvJacobian is a "left inverse" of SurfaceJacobian,
+    // but not a "right inverse." The product in the wrong ordering equals a
+    // projector, not an identity matrix.) As a result, the identity above
+    // involving three jacobians only gives the hessian projected to the
+    // 2-sphere. A slightly more elaborate derivation gives an extra
+    // correction term of -n^k \delta_{AB}, where $\delta_{AB}$ is the
+    // projector evaluated in spherepack's basis (which is indeed a 2-by-2
+    // identity matrix).
+  }
+  // TODO: Should this be spherical?
+  std::vector<tnsr::ij<DataVector, 2, Frame::Spherical<Fr>>> CoordSecondDeriv;
+  tnsr::ij<DataVector, 2, Frame::Spherical<Fr>> ThisCoordSecondDeriv;
+
+  for (size_t j = 0; j < 3; ++j) {
+    for (size_t A = 0; A < 2; ++A) {
+      for (size_t B = 0; B < 2; ++B) {
+        ThisCoordSecondDeriv.get(A, B) =
+            r_hat.get(j) * first_second_derivative_radius.second.get(A, B) +
+            radius.get() * hessian.get(j, A, B) +
+            jacobian.get(j, A) * first_second_derivative_radius.first.get(B) +
+            jacobian.get(j, B) * first_second_derivative_radius.first.get(A);
+      }
+    }
+    CoordSecondDeriv.push_back(ThisCoordSecondDeriv);
+  }
+
+  tnsr::ijk<DataVector, 2, Fr> grad_surface_metric =
+      make_with_value<tnsr::ijk<DataVector, 2, Fr>>(surface_metric, 0.0);
+  // For the terms involving derivatives of the surface metric, it might be
+  // tempting to simply take derivatives of the surface metric. Unfortunately
+  // in testing this has led to errors presumably related to aliasing. So
+  // instead we construct these derivatives out of projections of surface
+  // derivatives of the spatial metric.
+  for (size_t C = 0; C < 2; ++C) {
+    for (size_t A = 0; A < 2; ++A) {
+      for (size_t B = 0; B < 2; ++B) {
+        for (size_t i = 0; i < 3; ++i) {
+          for (size_t j = 0; j < 3; ++j) {
+            grad_surface_metric.get(C, A, B) +=
+                grad_spatial_metric[i + 3 * j].get(C) * CoordDeriv.get(i, A) *
+                    CoordDeriv.get(j, B) +
+                spatial_metric.get(i, j) * CoordSecondDeriv[i].get(C, A) *
+                    CoordDeriv.get(j, B) +
+                spatial_metric.get(i, j) * CoordDeriv.get(i, A) *
+                    CoordSecondDeriv[j].get(C, B);
+            // Note that CoordDeriv = SurfaceTangents, a MyVector<TDm>, with
+            // the MyVector index being a 2-d index and the tensor index
+            // being the spatial index. However because CoordSecondDeriv
+            // needs two of the 2-d indices, I put those in the Tensor
+            // indices and the single 3-d index in the MyVector index.
+            // Throughout this code, capital letters are 2-d indices, and
+            // lowercase letters are 3-d.
+          }
+        }
+      }
+    }
+  }
+
+  // Because spherepack's basis is noncoordinate, we also need to include
+  // terms related to the commutators of the basis vectors:
+  std::vector<tnsr::ij<DataVector, 2, Fr>> BasisCommutator(3);
+  for (size_t i = 0; i < 3; i++) {
+    BasisCommutator[i] =
+        make_with_value<tnsr::ij<DataVector, 2, Fr>>(surface_metric, 0.0);
+  }
+
+  for (size_t i = 0; i < 3; ++i) {
+    for (size_t A = 0; A < 2; ++A) {
+      for (size_t B = 0; B < 2; ++B) {
+        BasisCommutator[i].get(A, B) =
+            basis.first_and_second_derivative(cartesian_coords.get(i))
+                .second.get(A, B) -
+            basis.first_and_second_derivative(cartesian_coords.get(i))
+                .second.get(B, A);
+      }
+    }
+  }
+
+  tnsr::i<DataVector, 2, Frame::Spherical<Fr>> Gamma_down =
+      make_with_value<tnsr::i<DataVector, 2, Frame::Spherical<Fr>>>(
+          surface_metric, 0.0);
+
+  for (size_t C = 0; C < 2; ++C) {
+    for (size_t A = 0; A < 2; ++A) {
+      for (size_t B = 0; B < 2; ++B) {
+        Gamma_down.get(C) += inverse_surface_metric.get(A, B) *
+                             (grad_surface_metric.get(A, B, C) -
+                              .5 * grad_surface_metric.get(C, A, B));
+      }
+    }
+  }
+
+  for (size_t C = 0; C < 2; ++C) {
+    for (size_t i = 0; i < 3; ++i) {
+      for (size_t A = 0; A < 2; ++A) {
+        Gamma_down.get(C) +=
+            surface_dual_basis[A].get(i) * BasisCommutator[i].get(C, A);
+      }
+    }
+  }
+
+  tnsr::I<DataVector, 2, Frame::Spherical<Fr>> Gamma_up =
+      make_with_value<tnsr::I<DataVector, 2, Frame::Spherical<Fr>>>(
+          surface_metric, 0.0);
+
+  for (size_t A = 0; A < 2; ++A) {
+    for (size_t B = 0; B < 2; ++B) {
+      Gamma_up.get(A) += inverse_surface_metric.get(A, B) * Gamma_down.get(B);
+    }
+  }
+  return Gamma_up;
+}
+
 // I'm going to solve a general eigenvalue problem of the form
 // A x = lambda B x, where A and B are NxN, where N is the
 // number of elements with l > 0 and l < ntheta - 2,
@@ -153,8 +336,7 @@ void get_left_and_right_eigenproblem_matrices(
     const tnsr::II<DataVector, 2, Frame::Spherical<Fr>>& inverse_surface_metric,
     const tnsr::I<DataVector, 2, Frame::Spherical<Fr>>&
         trace_christoffel_second_kind,
-    const Scalar<DataVector>& sin_theta, const Scalar<DataVector>& ricci_scalar,
-    const YlmSpherepack& ylm) noexcept {
+    const Scalar<DataVector>& ricci_scalar, const YlmSpherepack& ylm) noexcept {
   const auto grad_ricci_scalar = ylm.gradient(get(ricci_scalar));
   // loop over all terms with 0<l<l_max-1: each makes a column of
   // the matrices for the eigenvalue problem
@@ -175,22 +357,20 @@ void get_left_and_right_eigenproblem_matrices(
       // In physical space, numerically compute the
       // linear differential operators acting on the
       // ith Y_lm.
-
       // \nabla^2 Y_lm
       const auto derivs_yi = ylm.first_and_second_derivative(yi_physical);
       auto laplacian_yi =
           make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
       get(laplacian_yi) +=
           get<0, 0>(derivs_yi.second) * get<0, 0>(inverse_surface_metric);
-      get(laplacian_yi) += 2.0 * get<1, 0>(derivs_yi.second) *
-                           get<1, 0>(inverse_surface_metric) * get(sin_theta);
-      get(laplacian_yi) += get<1, 1>(derivs_yi.second) *
-                           get<1, 1>(inverse_surface_metric) *
-                           square(get(sin_theta));
+      get(laplacian_yi) +=
+          2.0 * get<1, 0>(derivs_yi.second) * get<1, 0>(inverse_surface_metric);
+      get(laplacian_yi) +=
+          get<1, 1>(derivs_yi.second) * get<1, 1>(inverse_surface_metric);
       get(laplacian_yi) -=
           get<0>(derivs_yi.first) * get<0>(trace_christoffel_second_kind);
-      get(laplacian_yi) -= get<1>(derivs_yi.first) * get(sin_theta) *
-                           get<1>(trace_christoffel_second_kind);
+      get(laplacian_yi) -=
+          get<1>(derivs_yi.first) * get<1>(trace_christoffel_second_kind);
 
       // \nabla^4 Y_lm
       const auto derivs_laplacian_yi =
@@ -200,15 +380,12 @@ void get_left_and_right_eigenproblem_matrices(
       get(laplacian_squared_yi) += get<0, 0>(derivs_laplacian_yi.second) *
                                    get<0, 0>(inverse_surface_metric);
       get(laplacian_squared_yi) += 2.0 * get<1, 0>(derivs_laplacian_yi.second) *
-                                   get<1, 0>(inverse_surface_metric) *
-                                   get(sin_theta);
+                                   get<1, 0>(inverse_surface_metric);
       get(laplacian_squared_yi) += get<1, 1>(derivs_laplacian_yi.second) *
-                                   get<1, 1>(inverse_surface_metric) *
-                                   square(get(sin_theta));
+                                   get<1, 1>(inverse_surface_metric);
       get(laplacian_squared_yi) -= get<0>(derivs_laplacian_yi.first) *
                                    get<0>(trace_christoffel_second_kind);
       get(laplacian_squared_yi) -= get<1>(derivs_laplacian_yi.first) *
-                                   get(sin_theta) *
                                    get<1>(trace_christoffel_second_kind);
 
       // \nabla R \cdot \nabla Y_lm
@@ -217,15 +394,15 @@ void get_left_and_right_eigenproblem_matrices(
       get(grad_ricci_scalar_dot_grad_yi) += get<0>(derivs_yi.first) *
                                             get<0>(grad_ricci_scalar) *
                                             get<0, 0>(inverse_surface_metric);
-      get(grad_ricci_scalar_dot_grad_yi) +=
-          get<0>(derivs_yi.first) * get<1>(grad_ricci_scalar) *
-          get<1, 0>(inverse_surface_metric) * get(sin_theta);
-      get(grad_ricci_scalar_dot_grad_yi) +=
-          get<1>(derivs_yi.first) * get<0>(grad_ricci_scalar) *
-          get<1, 0>(inverse_surface_metric) * get(sin_theta);
-      get(grad_ricci_scalar_dot_grad_yi) +=
-          get<1>(derivs_yi.first) * get<1>(grad_ricci_scalar) *
-          get<1, 1>(inverse_surface_metric) * square(get(sin_theta));
+      get(grad_ricci_scalar_dot_grad_yi) += get<0>(derivs_yi.first) *
+                                            get<1>(grad_ricci_scalar) *
+                                            get<1, 0>(inverse_surface_metric);
+      get(grad_ricci_scalar_dot_grad_yi) += get<1>(derivs_yi.first) *
+                                            get<0>(grad_ricci_scalar) *
+                                            get<1, 0>(inverse_surface_metric);
+      get(grad_ricci_scalar_dot_grad_yi) += get<1>(derivs_yi.first) *
+                                            get<1>(grad_ricci_scalar) *
+                                            get<1, 1>(inverse_surface_metric);
 
       // Assemble the operator making up the eigenproblem's left-hand-side
       auto left_matrix_yi_physical =
@@ -739,22 +916,32 @@ double dimensionful_spin_magnitude(
     const Scalar<DataVector>& spin_function,
     const tnsr::ii<DataVector, 3, Frame>& spatial_metric,
     const StrahlkorperTags::aliases::Jacobian<Frame>& tangents,
-    const YlmSpherepack& ylm, const Scalar<DataVector>& area_element) noexcept {
+    const YlmSpherepack& ylm, const Scalar<DataVector>& area_element,
+    const Scalar<DataVector>& radius,
+    const tnsr::i<DataVector, 3, Frame>& r_hat,
+    const StrahlkorperTags::aliases::Jacobian<Frame>& jacobian,
+    const StrahlkorperTags::aliases::InvHessian<Frame>& inv_hessian,
+    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords) noexcept {
   const Scalar<DataVector> sin_theta{sin(ylm.theta_phi_points()[0])};
 
-  const auto surface_metric =
-      get_surface_metric(spatial_metric, tangents, sin_theta);
+  const auto surface_metric = get_surface_metric(spatial_metric, tangents);
   const auto inverse_surface_metric =
       determinant_and_inverse(surface_metric).second;
+
   const auto trace_christoffel_second_kind = get_trace_christoffel_second_kind(
       surface_metric, inverse_surface_metric, sin_theta, ylm);
+
+  const auto trace_christoffel_second_kind_angle_free =
+      get_trace_christoffel_second_kind_angle_free(
+          surface_metric, inverse_surface_metric, ylm, spatial_metric, tangents,
+          radius, r_hat, jacobian, inv_hessian, cartesian_coords);
 
   const size_t matrix_dimension = get_matrix_dimension(ylm);
   Matrix left_matrix(matrix_dimension, matrix_dimension, 0.0);
   Matrix right_matrix(matrix_dimension, matrix_dimension, 0.0);
   get_left_and_right_eigenproblem_matrices(
       &left_matrix, &right_matrix, inverse_surface_metric,
-      trace_christoffel_second_kind, sin_theta, ricci_scalar, ylm);
+      trace_christoffel_second_kind_angle_free, ricci_scalar, ylm);
 
   DataVector eigenvalues_real_part(matrix_dimension, 0.0);
   DataVector eigenvalues_im_part(matrix_dimension, 0.0);
@@ -984,8 +1171,13 @@ double christodoulou_mass(const double dimensionful_spin_magnitude,
       const Scalar<DataVector>& spin_function,                                 \
       const tnsr::ii<DataVector, 3, FRAME(data)>& spatial_metric,              \
       const StrahlkorperTags::aliases::Jacobian<FRAME(data)>& tangents,        \
-      const YlmSpherepack& ylm,                                                \
-      const Scalar<DataVector>& area_element) noexcept;                        \
+      const YlmSpherepack& ylm, const Scalar<DataVector>& area_element,        \
+      const Scalar<DataVector>& radius,                                        \
+      const tnsr::i<DataVector, 3, FRAME(data)>& r_hat,                        \
+      const StrahlkorperTags::aliases::Jacobian<FRAME(data)>& jacobian,        \
+      const StrahlkorperTags::aliases::InvHessian<FRAME(data)>& inv_hessian,   \
+      const StrahlkorperTags::aliases::Vector<FRAME(data)>&                    \
+          cartesian_coords) noexcept;                                          \
   template void StrahlkorperGr::spin_vector<FRAME(data)>(                      \
       const gsl::not_null<std::array<double, 3>*> result,                      \
       const double spin_magnitude, const Scalar<DataVector>& area_element,     \

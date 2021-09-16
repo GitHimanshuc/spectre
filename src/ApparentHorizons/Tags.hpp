@@ -754,7 +754,11 @@ struct DimensionfulSpinMagnitudeCompute : DimensionfulSpinMagnitude,
       tmpl::list<StrahlkorperTags::RicciScalar, SpinFunction,
                  gr::Tags::SpatialMetric<3, Frame>,
                  StrahlkorperTags::Tangents<Frame>,
-                 StrahlkorperTags::Strahlkorper<Frame>, AreaElement<Frame>>;
+                 StrahlkorperTags::Strahlkorper<Frame>, AreaElement<Frame>,
+                 StrahlkorperTags::Radius<Frame>, StrahlkorperTags::Rhat<Frame>,
+                 StrahlkorperTags::aliases::Jacobian<Frame>,
+                 StrahlkorperTags::aliases::InvHessian<Frame>,
+                 StrahlkorperTags::aliases::Vector<Frame>>;
 };
 
 /// The dimensionful spin angular momentum vector.
