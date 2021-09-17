@@ -406,7 +406,9 @@ double dimensionful_spin_magnitude(
     const tnsr::i<DataVector, 3, Frame>& r_hat,
     const StrahlkorperTags::aliases::Jacobian<Frame>& jacobian,
     const StrahlkorperTags::aliases::InvHessian<Frame>& inv_hessian,
-    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords) noexcept;
+    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords,
+    const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,
+    const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept;
 
 /*!
  * \ingroup SurfacesGroup

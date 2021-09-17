@@ -1,4 +1,8 @@
 // Distributed under the MIT License.
+
+#include <iomanip>
+#include <iostream>
+
 // See LICENSE.txt for details.
 
 #include "ApparentHorizons/StrahlkorperGr.hpp"
@@ -142,8 +146,8 @@ get_trace_christoffel_second_kind_angle_free(
 
   for (size_t i = 0; i < surface_dual_basis.size(); i++) {
     surface_dual_basis[i] =
-        make_with_value<tnsr::i<DataVector, 3, Frame::Spherical<Fr>>>(r_hat,
-                                                                      0.0);
+        make_with_value<tnsr::i<DataVector, 3, Frame::Spherical<Fr>>>(
+            surface_metric, 0.0);
   }
 
   for (size_t i = 0; i < 3; ++i) {
@@ -170,27 +174,26 @@ get_trace_christoffel_second_kind_angle_free(
     }
   }
 
-  const auto first_second_derivative_radius =
-      ylm.first_and_second_derivative(get(radius));
-
-  auto hessian = inv_hessian;
+  // auto hessian = make_with_value<StrahlkorperTags::aliases::InvHessian<Fr>>(
+  //     inv_hessian, 0.0);
+  std::vector<DataVector> hessian(12, jacobian.get(0, 0) * 0.0);
   for (size_t k = 0; k < 3; ++k) {
     for (size_t A = 0; A < 2; ++A) {
       for (size_t B = 0; B < 2; ++B) {
         for (size_t l = 0; l < 3; ++l) {
           for (size_t m = 0; m < 3; ++m) {
             for (size_t C = 0; C < 2; ++C) {
-              hessian.get(k, A, B) -= jacobian.get(l, A) * jacobian.get(m, B) *
-                                      jacobian.get(k, C) *
-                                      inv_hessian.get(C, l, m);
+              hessian[k * 4 + A * 2 + B] -=
+                  jacobian.get(l, A) * jacobian.get(m, B) * jacobian.get(k, C) *
+                  inv_hessian.get(C, l, m);
             }
           }
         }
       }
     }
 
-    hessian.get(k, 0, 0) -= r_hat.get(k);
-    hessian.get(k, 1, 1) -= r_hat.get(k);
+    hessian[k * 4 + 0 * 2 + 0] -= r_hat.get(k);
+    hessian[k * 4 + 1 * 2 + 1] -= r_hat.get(k);
     // These two extra terms are not obvious. Or at least, they certainly
     // weren't obvious to me. The above identity assumes that
     // the Jacobian is uniquely invertible. In this case, because we're
@@ -204,25 +207,29 @@ get_trace_christoffel_second_kind_angle_free(
     // projector evaluated in spherepack's basis (which is indeed a 2-by-2
     // identity matrix).
   }
+
+  const auto dr = ylm.gradient(get(radius));
+  const auto ddr = ylm.first_and_second_derivative(get(radius)).second;
+
   // TODO: Should this be spherical?
-  std::vector<tnsr::ij<DataVector, 2, Frame::Spherical<Fr>>> CoordSecondDeriv;
-  tnsr::ij<DataVector, 2, Frame::Spherical<Fr>> ThisCoordSecondDeriv;
+  std::vector<tnsr::ij<DataVector, 2, Fr>> CoordSecondDeriv;
+  tnsr::ij<DataVector, 2, Fr> ThisCoordSecondDeriv;
 
   for (size_t j = 0; j < 3; ++j) {
     for (size_t A = 0; A < 2; ++A) {
       for (size_t B = 0; B < 2; ++B) {
         ThisCoordSecondDeriv.get(A, B) =
-            r_hat.get(j) * first_second_derivative_radius.second.get(A, B) +
-            radius.get() * hessian.get(j, A, B) +
-            jacobian.get(j, A) * first_second_derivative_radius.first.get(B) +
-            jacobian.get(j, B) * first_second_derivative_radius.first.get(A);
+            r_hat.get(j) * ddr.get(A, B) +
+            radius.get() * hessian[j * 4 + A * 2 + B] +
+            jacobian.get(j, A) * dr.get(B) + jacobian.get(j, B) * dr.get(A);
       }
     }
     CoordSecondDeriv.push_back(ThisCoordSecondDeriv);
   }
 
-  tnsr::ijk<DataVector, 2, Fr> grad_surface_metric =
-      make_with_value<tnsr::ijk<DataVector, 2, Fr>>(surface_metric, 0.0);
+  tnsr::ijk<DataVector, 2, Frame::Spherical<Fr>> grad_surface_metric =
+      make_with_value<tnsr::ijk<DataVector, 2, Frame::Spherical<Fr>>>(
+          surface_metric, 0.0);
   // For the terms involving derivatives of the surface metric, it might be
   // tempting to simply take derivatives of the surface metric. Unfortunately
   // in testing this has led to errors presumably related to aliasing. So
@@ -255,10 +262,11 @@ get_trace_christoffel_second_kind_angle_free(
 
   // Because spherepack's basis is noncoordinate, we also need to include
   // terms related to the commutators of the basis vectors:
-  std::vector<tnsr::ij<DataVector, 2, Fr>> BasisCommutator(3);
+  std::vector<tnsr::ij<DataVector, 2, Frame::Spherical<Fr>>> BasisCommutator(3);
   for (size_t i = 0; i < 3; i++) {
     BasisCommutator[i] =
-        make_with_value<tnsr::ij<DataVector, 2, Fr>>(surface_metric, 0.0);
+        make_with_value<tnsr::ij<DataVector, 2, Frame::Spherical<Fr>>>(
+            surface_metric, 0.0);
   }
 
   for (size_t i = 0; i < 3; ++i) {
@@ -533,6 +541,56 @@ double get_spin_magnitude(const std::array<DataVector, 3>& potentials,
   }
   return sqrt(spin_magnitude_squared);
 }
+template <typename Frame>
+double get_spin_magnitude_spec(
+    const std::array<DataVector, 3>& potentials,
+    const Scalar<DataVector>& area_element, const YlmSpherepack& ylm,
+    const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,
+    const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature,
+    const StrahlkorperTags::aliases::Jacobian<Frame>& tangents) noexcept {
+  double spin_magnitude_squared = 0.0;
+
+  std::vector<YlmSpherepack::FirstDeriv> grad_potentials(3);
+  for (size_t i = 0; i < 3; i++) {
+    grad_potentials[i] = ylm.gradient(potentials[i]);
+  }
+
+  auto extrinsic_curvature_theta_normal_sin_theta =
+      make_with_value<Scalar<DataVector>>(area_element, 0.0);
+  auto extrinsic_curvature_phi_normal =
+      make_with_value<Scalar<DataVector>>(area_element, 0.0);
+
+  DataVector extrinsic_curvature_dot_normal = get(area_element) * 0.0;
+  for (size_t i = 0; i < 3; ++i) {
+    extrinsic_curvature_dot_normal =
+        extrinsic_curvature.get(i, 0) * get<0>(unit_normal_vector);
+    for (size_t j = 1; j < 3; ++j) {
+      extrinsic_curvature_dot_normal +=
+          extrinsic_curvature.get(i, j) * unit_normal_vector.get(j);
+    }
+
+    get(extrinsic_curvature_theta_normal_sin_theta) +=
+        extrinsic_curvature_dot_normal * tangents.get(i, 0);
+
+    get(extrinsic_curvature_phi_normal) +=
+        extrinsic_curvature_dot_normal * tangents.get(i, 1);
+  }
+
+  tnsr::i<DataVector, 3, Frame> spin_density;
+  for (size_t i = 0; i < 3; i++) {
+    spin_density.get(i) =
+        extrinsic_curvature_theta_normal_sin_theta.get() *
+            grad_potentials[i].get(1) -
+        extrinsic_curvature_phi_normal.get() * grad_potentials[i].get(0);
+  }
+
+  for (size_t i = 0; i < 3; ++i) {
+    spin_magnitude_squared += square(
+        ylm.definite_integral(spin_density.get(i).data()) / (8.0 * M_PI));
+  }
+  return sqrt(spin_magnitude_squared);
+}
+
 }  // namespace
 
 namespace StrahlkorperGr {
@@ -921,7 +979,9 @@ double dimensionful_spin_magnitude(
     const tnsr::i<DataVector, 3, Frame>& r_hat,
     const StrahlkorperTags::aliases::Jacobian<Frame>& jacobian,
     const StrahlkorperTags::aliases::InvHessian<Frame>& inv_hessian,
-    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords) noexcept {
+    const StrahlkorperTags::aliases::Vector<Frame>& cartesian_coords,
+    const tnsr::I<DataVector, 3, Frame>& unit_normal_vector,
+    const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept {
   const Scalar<DataVector> sin_theta{sin(ylm.theta_phi_points()[0])};
 
   const auto surface_metric = get_surface_metric(spatial_metric, tangents);
@@ -958,7 +1018,15 @@ double dimensionful_spin_magnitude(
   const auto potentials =
       get_normalized_spin_potentials(smallest_eigenvectors, ylm, area_element);
 
-  return get_spin_magnitude(potentials, spin_function, area_element, ylm);
+  double old_spin =
+      get_spin_magnitude(potentials, spin_function, area_element, ylm);
+  double new_spec_spin =
+      get_spin_magnitude_spec(potentials, area_element, ylm, unit_normal_vector,
+                              extrinsic_curvature, tangents);
+
+  std::cout << "Old spin is: " << old_spin
+            << "\nnew_spec_spin is: " << new_spec_spin << "\n";
+  return old_spin;
 }
 
 template <typename Frame>
@@ -1176,8 +1244,10 @@ double christodoulou_mass(const double dimensionful_spin_magnitude,
       const tnsr::i<DataVector, 3, FRAME(data)>& r_hat,                        \
       const StrahlkorperTags::aliases::Jacobian<FRAME(data)>& jacobian,        \
       const StrahlkorperTags::aliases::InvHessian<FRAME(data)>& inv_hessian,   \
-      const StrahlkorperTags::aliases::Vector<FRAME(data)>&                    \
-          cartesian_coords) noexcept;                                          \
+      const StrahlkorperTags::aliases::Vector<FRAME(data)>& cartesian_coords,  \
+      const tnsr::I<DataVector, 3, FRAME(data)>& unit_normal_vector,           \
+      const tnsr::ii<DataVector, 3, FRAME(data)>&                              \
+          extrinsic_curvature) noexcept;                                       \
   template void StrahlkorperGr::spin_vector<FRAME(data)>(                      \
       const gsl::not_null<std::array<double, 3>*> result,                      \
       const double spin_magnitude, const Scalar<DataVector>& area_element,     \
