@@ -1,7 +1,9 @@
 // Distributed under the MIT License.
 
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <stdlib.h>
 
 // See LICENSE.txt for details.
 
@@ -49,23 +51,34 @@ tnsr::ii<DataVector, 2, Frame::Spherical<Fr>> get_surface_metric(
   auto surface_metric =
       make_with_value<tnsr::ii<DataVector, 2, Frame::Spherical<Fr>>>(
           get<0, 0>(spatial_metric), 0.0);
-  for (size_t i = 0; i < 3; ++i) {
-    for (size_t j = 0; j < 3; ++j) {
-      get<0, 1>(surface_metric) +=
-          spatial_metric.get(i, j) * tangents.get(i, 0) * tangents.get(j, 1);
-    }
-    // Use symmetry to sum over fewer terms for the 0,0 and 1,1 components
-    get<0, 0>(surface_metric) +=
-        spatial_metric.get(i, i) * square(tangents.get(i, 0));
-    get<1, 1>(surface_metric) +=
-        spatial_metric.get(i, i) * square(tangents.get(i, 1));
-    for (size_t j = i + 1; j < 3; ++j) {
-      get<0, 0>(surface_metric) += 2.0 * spatial_metric.get(i, j) *
-                                   tangents.get(i, 0) * tangents.get(j, 0);
-      get<1, 1>(surface_metric) += 2.0 * spatial_metric.get(i, j) *
-                                   tangents.get(i, 1) * tangents.get(j, 1);
+  for (int A = 0; A < 2; ++A) {
+    for (int B = A; B < 2; ++B) {
+      for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+          surface_metric.get(A, B) += spatial_metric.get(i, j) *
+                                      tangents.get(i, A) * tangents.get(j, B);
+        }
+      }
     }
   }
+
+  // for (size_t i = 0; i < 3; ++i) {
+  //   for (size_t j = 0; j < 3; ++j) {
+  //     get<0, 1>(surface_metric) +=
+  //         spatial_metric.get(i, j) * tangents.get(i, 0) * tangents.get(j, 1);
+  //   }
+  //   // Use symmetry to sum over fewer terms for the 0,0 and 1,1 components
+  //   get<0, 0>(surface_metric) +=
+  //       spatial_metric.get(i, i) * square(tangents.get(i, 0));
+  //   get<1, 1>(surface_metric) +=
+  //       spatial_metric.get(i, i) * square(tangents.get(i, 1));
+  //   for (size_t j = i + 1; j < 3; ++j) {
+  //     get<0, 0>(surface_metric) += 2.0 * spatial_metric.get(i, j) *
+  //                                  tangents.get(i, 0) * tangents.get(j, 0);
+  //     get<1, 1>(surface_metric) += 2.0 * spatial_metric.get(i, j) *
+  //                                  tangents.get(i, 1) * tangents.get(j, 1);
+  //   }
+  // }
   return surface_metric;
 }
 template <typename Fr>
@@ -140,6 +153,116 @@ void get_left_and_right_eigenproblem_matrices_old(
       get(laplacian_yi) += get<1, 1>(derivs_yi.second) *
                            get<1, 1>(inverse_surface_metric) *
                            square(get(sin_theta));
+      get(laplacian_yi) -=
+          get<0>(derivs_yi.first) * get<0>(trace_christoffel_second_kind);
+      get(laplacian_yi) -= get<1>(derivs_yi.first) * get(sin_theta) *
+                           get<1>(trace_christoffel_second_kind);
+
+      // \nabla^4 Y_lm
+      const auto derivs_laplacian_yi =
+          ylm.first_and_second_derivative(get(laplacian_yi));
+      auto laplacian_squared_yi =
+          make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
+      get(laplacian_squared_yi) += get<0, 0>(derivs_laplacian_yi.second) *
+                                   get<0, 0>(inverse_surface_metric);
+      get(laplacian_squared_yi) += 2.0 * get<1, 0>(derivs_laplacian_yi.second) *
+                                   get<1, 0>(inverse_surface_metric) *
+                                   get(sin_theta);
+      get(laplacian_squared_yi) += get<1, 1>(derivs_laplacian_yi.second) *
+                                   get<1, 1>(inverse_surface_metric) *
+                                   square(get(sin_theta));
+      get(laplacian_squared_yi) -= get<0>(derivs_laplacian_yi.first) *
+                                   get<0>(trace_christoffel_second_kind);
+      get(laplacian_squared_yi) -= get<1>(derivs_laplacian_yi.first) *
+                                   get(sin_theta) *
+                                   get<1>(trace_christoffel_second_kind);
+
+      // \nabla R \cdot \nabla Y_lm
+      auto grad_ricci_scalar_dot_grad_yi =
+          make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
+      get(grad_ricci_scalar_dot_grad_yi) += get<0>(derivs_yi.first) *
+                                            get<0>(grad_ricci_scalar) *
+                                            get<0, 0>(inverse_surface_metric);
+      get(grad_ricci_scalar_dot_grad_yi) +=
+          get<0>(derivs_yi.first) * get<1>(grad_ricci_scalar) *
+          get<1, 0>(inverse_surface_metric) * get(sin_theta);
+      get(grad_ricci_scalar_dot_grad_yi) +=
+          get<1>(derivs_yi.first) * get<0>(grad_ricci_scalar) *
+          get<1, 0>(inverse_surface_metric) * get(sin_theta);
+      get(grad_ricci_scalar_dot_grad_yi) +=
+          get<1>(derivs_yi.first) * get<1>(grad_ricci_scalar) *
+          get<1, 1>(inverse_surface_metric) * square(get(sin_theta));
+
+      // Assemble the operator making up the eigenproblem's left-hand-side
+      auto left_matrix_yi_physical =
+          make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
+      get(left_matrix_yi_physical) = get(laplacian_squared_yi) +
+                                     get(ricci_scalar) * get(laplacian_yi) +
+                                     get(grad_ricci_scalar_dot_grad_yi);
+
+      // Transform back to spectral space, to get one column each for the left
+      // and right matrices for the eigenvalue problem.
+      const DataVector left_matrix_yi_spectral =
+          ylm.phys_to_spec(get(left_matrix_yi_physical));
+      const DataVector right_matrix_yi_spectral =
+          ylm.phys_to_spec(get(laplacian_yi));
+
+      // Set the current column of the left and right matrices
+      // for the eigenproblem.
+      size_t row = 0;
+      for (auto iter_j = SpherepackIterator(ylm.l_max(), ylm.m_max()); iter_j;
+           ++iter_j) {
+        if (iter_j.l() > 0 and iter_j.l() < ylm.l_max() - 1) {
+          (*left_matrix)(row, column) = left_matrix_yi_spectral[iter_j()];
+          (*right_matrix)(row, column) = right_matrix_yi_spectral[iter_j()];
+          ++row;
+        }
+      }  // loop over rows
+      ++column;
+    }
+  }  // loop over columns
+}
+
+template <typename Fr>
+void get_left_and_right_eigenproblem_matrices_angle_free_surfG(
+    const gsl::not_null<Matrix*> left_matrix,
+    const gsl::not_null<Matrix*> right_matrix,
+    const tnsr::II<DataVector, 2, Frame::Spherical<Fr>>& inverse_surface_metric,
+    const tnsr::I<DataVector, 2, Frame::Spherical<Fr>>&
+        trace_christoffel_second_kind,
+    const Scalar<DataVector>& sin_theta, const Scalar<DataVector>& ricci_scalar,
+    const YlmSpherepack& ylm) noexcept {
+  const auto grad_ricci_scalar = ylm.gradient(get(ricci_scalar));
+  // loop over all terms with 0<l<l_max-1: each makes a column of
+  // the matrices for the eigenvalue problem
+  size_t column = 0;  // number which column of the matrix we are filling
+  for (auto iter_i = SpherepackIterator(ylm.l_max(), ylm.m_max()); iter_i;
+       ++iter_i) {
+    if (iter_i.l() > 0 and iter_i.l() < ylm.l_max() - 1 and
+        iter_i.m() <= iter_i.l()) {
+      // Make a spectral vector that's all zeros except for one element,
+      // which is 1. This corresponds to the ith Ylm, which I call yi.
+      DataVector yi_spectral(ylm.spectral_size(), 0.0);
+      yi_spectral[iter_i()] = 1.0;
+
+      // Transform column vector corresponding to
+      // a specific Y_lm to physical space.
+      const DataVector yi_physical = ylm.spec_to_phys(yi_spectral);
+
+      // In physical space, numerically compute the
+      // linear differential operators acting on the
+      // ith Y_lm.
+
+      // \nabla^2 Y_lm
+      const auto derivs_yi = ylm.first_and_second_derivative(yi_physical);
+      auto laplacian_yi =
+          make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
+      get(laplacian_yi) +=
+          get<0, 0>(derivs_yi.second) * get<0, 0>(inverse_surface_metric);
+      get(laplacian_yi) +=
+          2.0 * get<1, 0>(derivs_yi.second) * get<1, 0>(inverse_surface_metric);
+      get(laplacian_yi) +=
+          get<1, 1>(derivs_yi.second) * get<1, 1>(inverse_surface_metric);
       get(laplacian_yi) -=
           get<0>(derivs_yi.first) * get<0>(trace_christoffel_second_kind);
       get(laplacian_yi) -= get<1>(derivs_yi.first) * get(sin_theta) *
@@ -317,24 +440,29 @@ get_trace_christoffel_second_kind_angle_free(
 
   // auto hessian = make_with_value<StrahlkorperTags::aliases::InvHessian<Fr>>(
   //     inv_hessian, 0.0);
-  std::vector<DataVector> hessian(12, jacobian.get(0, 0) * 0.0);
+  // std::vector<DataVector> hessian(12, jacobian.get(0, 0) * 0.0);
+  auto hessian = make_with_value<StrahlkorperTags::aliases::Hessian<Fr>>(
+      jacobian.get(0, 0), 0.0);
   for (size_t k = 0; k < 3; ++k) {
     for (size_t A = 0; A < 2; ++A) {
       for (size_t B = 0; B < 2; ++B) {
         for (size_t l = 0; l < 3; ++l) {
           for (size_t m = 0; m < 3; ++m) {
             for (size_t C = 0; C < 2; ++C) {
-              hessian[k * 4 + A * 2 + B] -=
-                  jacobian.get(l, A) * jacobian.get(m, B) * jacobian.get(k, C) *
-                  inv_hessian.get(C, l, m);
+              // hessian[k * 4 + A * 2 + B] -=
+              //     jacobian.get(l, A) * jacobian.get(m, B) * jacobian.get(k,
+              //     C) * inv_hessian.get(C, l, m);
+              hessian.get(k, A, B) -= jacobian.get(l, A) * jacobian.get(m, B) *
+                                      jacobian.get(k, C) *
+                                      inv_hessian.get(C, l, m);
             }
           }
         }
       }
     }
 
-    hessian[k * 4 + 0 * 2 + 0] -= r_hat.get(k);
-    hessian[k * 4 + 1 * 2 + 1] -= r_hat.get(k);
+    hessian.get(k, 0, 0) -= r_hat.get(k);
+    hessian.get(k, 1, 1) -= r_hat.get(k);
     // These two extra terms are not obvious. Or at least, they certainly
     // weren't obvious to me. The above identity assumes that
     // the Jacobian is uniquely invertible. In this case, because we're
@@ -352,16 +480,14 @@ get_trace_christoffel_second_kind_angle_free(
   const auto dr = ylm.gradient(get(radius));
   const auto ddr = ylm.first_and_second_derivative(get(radius)).second;
 
-  // TODO: Should this be spherical?
-  std::vector<tnsr::ij<DataVector, 2, Fr>> CoordSecondDeriv;
-  tnsr::ij<DataVector, 2, Fr> ThisCoordSecondDeriv;
+  std::vector<tnsr::ij<DataVector, 2, Frame::Spherical<Fr>>> CoordSecondDeriv;
+  tnsr::ij<DataVector, 2, Frame::Spherical<Fr>> ThisCoordSecondDeriv;
 
   for (size_t j = 0; j < 3; ++j) {
     for (size_t A = 0; A < 2; ++A) {
       for (size_t B = 0; B < 2; ++B) {
         ThisCoordSecondDeriv.get(A, B) =
-            r_hat.get(j) * ddr.get(A, B) +
-            radius.get() * hessian[j * 4 + A * 2 + B] +
+            r_hat.get(j) * ddr.get(A, B) + radius.get() * hessian.get(j, A, B) +
             jacobian.get(j, A) * dr.get(B) + jacobian.get(j, B) * dr.get(A);
       }
     }
@@ -382,13 +508,13 @@ get_trace_christoffel_second_kind_angle_free(
         for (size_t i = 0; i < 3; ++i) {
           for (size_t j = 0; j < 3; ++j) {
             grad_surface_metric.get(C, A, B) +=
-                grad_spatial_metric[i + 3 * j].get(C) * CoordDeriv.get(i, A) *
-                    CoordDeriv.get(j, B) +
+                grad_spatial_metric[i + 3 * j].get(C) * tangents.get(i, A) *
+                    tangents.get(j, B) +
                 spatial_metric.get(i, j) * CoordSecondDeriv[i].get(C, A) *
-                    CoordDeriv.get(j, B) +
-                spatial_metric.get(i, j) * CoordDeriv.get(i, A) *
+                    tangents.get(j, B) +
+                spatial_metric.get(i, j) * tangents.get(i, A) *
                     CoordSecondDeriv[j].get(C, B);
-            // Note that CoordDeriv = SurfaceTangents, a MyVector<TDm>, with
+            // Note that tangents = SurfaceTangents, a MyVector<TDm>, with
             // the MyVector index being a 2-d index and the tensor index
             // being the spatial index. However because CoordSecondDeriv
             // needs two of the 2-d indices, I put those in the Tensor
@@ -410,7 +536,9 @@ get_trace_christoffel_second_kind_angle_free(
             surface_metric, 0.0);
   }
 
+  auto coord_deriv = ylm.first_and_second_derivative(cartesian_coords.get(0));
   for (size_t i = 0; i < 3; ++i) {
+    coord_deriv = ylm.first_and_second_derivative(cartesian_coords.get(i));
     for (size_t A = 0; A < 2; ++A) {
       for (size_t B = 0; B < 2; ++B) {
         BasisCommutator[i].get(A, B) =
@@ -454,6 +582,14 @@ get_trace_christoffel_second_kind_angle_free(
       Gamma_up.get(A) += inverse_surface_metric.get(A, B) * Gamma_down.get(B);
     }
   }
+
+  auto Gamma_up_0 = ylm.phys_to_spec(Gamma_up.get(0));
+  auto Gamma_up_1 = ylm.phys_to_spec(Gamma_up.get(1));
+  for (size_t i = 0; i < Gamma_up_0.size(); i++) {
+    std::cout << i << " Gamma_up: " << Gamma_up_0[i] << ", " << Gamma_up_1[i]
+              << "\n";
+  }
+
   return Gamma_up;
 }
 
@@ -475,6 +611,31 @@ size_t get_matrix_dimension(const YlmSpherepack& ylm) noexcept {
     matrix_dimension += 2;
   }
   return matrix_dimension;
+}
+
+template <typename Fr>
+Scalar<DataVector> find_laplacian(
+    const DataVector& input,
+    const tnsr::II<DataVector, 2, Frame::Spherical<Fr>>& inverse_surface_metric,
+    const tnsr::I<DataVector, 2, Frame::Spherical<Fr>>&
+        trace_christoffel_second_kind,
+    const YlmSpherepack& ylm) {
+  auto laplacian =
+      make_with_value<Scalar<DataVector>>(inverse_surface_metric, 0.0);
+  const auto derivs_input = ylm.first_and_second_derivative(input);
+
+  get(laplacian) +=
+      get<0, 0>(derivs_input.second) * get<0, 0>(inverse_surface_metric);
+  get(laplacian) +=
+      2.0 * get<1, 0>(derivs_input.second) * get<1, 0>(inverse_surface_metric);
+  get(laplacian) +=
+      get<1, 1>(derivs_input.second) * get<1, 1>(inverse_surface_metric);
+  get(laplacian) -=
+      get<0>(derivs_input.first) * get<0>(trace_christoffel_second_kind);
+  get(laplacian) -=
+      get<1>(derivs_input.first) * get<1>(trace_christoffel_second_kind);
+
+  return laplacian;
 }
 
 // Get left matrix A and right matrix B for eigenproblem A x = lambda B x.
@@ -508,34 +669,14 @@ void get_left_and_right_eigenproblem_matrices(
       // ith Y_lm.
       // \nabla^2 Y_lm
       const auto derivs_yi = ylm.first_and_second_derivative(yi_physical);
-      auto laplacian_yi =
-          make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
-      get(laplacian_yi) +=
-          get<0, 0>(derivs_yi.second) * get<0, 0>(inverse_surface_metric);
-      get(laplacian_yi) +=
-          2.0 * get<1, 0>(derivs_yi.second) * get<1, 0>(inverse_surface_metric);
-      get(laplacian_yi) +=
-          get<1, 1>(derivs_yi.second) * get<1, 1>(inverse_surface_metric);
-      get(laplacian_yi) -=
-          get<0>(derivs_yi.first) * get<0>(trace_christoffel_second_kind);
-      get(laplacian_yi) -=
-          get<1>(derivs_yi.first) * get<1>(trace_christoffel_second_kind);
+      const auto laplacian_yi =
+          find_laplacian(yi_physical, inverse_surface_metric,
+                         trace_christoffel_second_kind, ylm);
 
       // \nabla^4 Y_lm
-      const auto derivs_laplacian_yi =
-          ylm.first_and_second_derivative(get(laplacian_yi));
-      auto laplacian_squared_yi =
-          make_with_value<Scalar<DataVector>>(ricci_scalar, 0.0);
-      get(laplacian_squared_yi) += get<0, 0>(derivs_laplacian_yi.second) *
-                                   get<0, 0>(inverse_surface_metric);
-      get(laplacian_squared_yi) += 2.0 * get<1, 0>(derivs_laplacian_yi.second) *
-                                   get<1, 0>(inverse_surface_metric);
-      get(laplacian_squared_yi) += get<1, 1>(derivs_laplacian_yi.second) *
-                                   get<1, 1>(inverse_surface_metric);
-      get(laplacian_squared_yi) -= get<0>(derivs_laplacian_yi.first) *
-                                   get<0>(trace_christoffel_second_kind);
-      get(laplacian_squared_yi) -= get<1>(derivs_laplacian_yi.first) *
-                                   get<1>(trace_christoffel_second_kind);
+      const auto laplacian_squared_yi =
+          find_laplacian(laplacian_yi.get(), inverse_surface_metric,
+                         trace_christoffel_second_kind, ylm);
 
       // \nabla R \cdot \nabla Y_lm
       auto grad_ricci_scalar_dot_grad_yi =
@@ -575,10 +716,12 @@ void get_left_and_right_eigenproblem_matrices(
         if (iter_j.l() > 0 and iter_j.l() < ylm.l_max() - 1) {
           (*left_matrix)(row, column) = left_matrix_yi_spectral[iter_j()];
           (*right_matrix)(row, column) = right_matrix_yi_spectral[iter_j()];
+
           ++row;
         }
       }  // loop over rows
       ++column;
+
     }
   }  // loop over columns
 }
@@ -1125,43 +1268,79 @@ double dimensionful_spin_magnitude(
     const tnsr::ii<DataVector, 3, Frame>& extrinsic_curvature) noexcept {
   const Scalar<DataVector> sin_theta{sin(ylm.theta_phi_points()[0])};
 
-  const auto surface_metric_old =
-      get_surface_metric_old(spatial_metric, tangents, sin_theta);
-  const auto inverse_surface_metric_old =
-      determinant_and_inverse(surface_metric_old).second;
+  // const auto surface_metric_old =
+  //     get_surface_metric_old(spatial_metric, tangents, sin_theta);
+  // const auto inverse_surface_metric_old =
+  //     determinant_and_inverse(surface_metric_old).second;
 
-  const auto trace_christoffel_second_kind_old =
-      get_trace_christoffel_second_kind(
-          surface_metric_old, inverse_surface_metric_old, sin_theta, ylm);
+  // const auto trace_christoffel_second_kind_old =
+  //     get_trace_christoffel_second_kind(
+  //         surface_metric_old, inverse_surface_metric_old, sin_theta, ylm);
 
-  const size_t matrix_dimension_old = get_matrix_dimension(ylm);
-  Matrix left_matrix_old(matrix_dimension_old, matrix_dimension_old, 0.0);
-  Matrix right_matrix_old(matrix_dimension_old, matrix_dimension_old, 0.0);
-  get_left_and_right_eigenproblem_matrices_old(
-      &left_matrix_old, &right_matrix_old, inverse_surface_metric_old,
-      trace_christoffel_second_kind_old, sin_theta, ricci_scalar, ylm);
+  // const size_t matrix_dimension_old = get_matrix_dimension(ylm);
+  // Matrix left_matrix_old(matrix_dimension_old, matrix_dimension_old, 0.0);
+  // Matrix right_matrix_old(matrix_dimension_old, matrix_dimension_old, 0.0);
+  // get_left_and_right_eigenproblem_matrices_old(
+  //     &left_matrix_old, &right_matrix_old, inverse_surface_metric_old,
+  //     trace_christoffel_second_kind_old, sin_theta, ricci_scalar, ylm);
 
-  DataVector eigenvalues_real_part_old(matrix_dimension_old, 0.0);
-  DataVector eigenvalues_im_part_old(matrix_dimension_old, 0.0);
-  Matrix eigenvectors_old(matrix_dimension_old, matrix_dimension_old, 0.0);
-  find_generalized_eigenvalues(&eigenvalues_real_part_old,
-                               &eigenvalues_im_part_old, &eigenvectors_old,
-                               left_matrix_old, right_matrix_old);
+  // DataVector eigenvalues_real_part_old(matrix_dimension_old, 0.0);
+  // DataVector eigenvalues_im_part_old(matrix_dimension_old, 0.0);
+  // Matrix eigenvectors_old(matrix_dimension_old, matrix_dimension_old, 0.0);
+  // find_generalized_eigenvalues(&eigenvalues_real_part_old,
+  //                              &eigenvalues_im_part_old, &eigenvectors_old,
+  //                              left_matrix_old, right_matrix_old);
 
-  const std::array<DataVector, 3> smallest_eigenvectors_old =
-      get_eigenvectors_for_3_smallest_magnitude_eigenvalues(
-          eigenvalues_real_part_old, eigenvectors_old, ylm);
+  // const std::array<DataVector, 3> smallest_eigenvectors_old =
+  //     get_eigenvectors_for_3_smallest_magnitude_eigenvalues(
+  //         eigenvalues_real_part_old, eigenvectors_old, ylm);
 
-  // Get normalized potentials (Kerr normalization) corresponding to the
-  // eigenvectors with three smallest-magnitude eigenvalues.
-  const auto potentials_old = get_normalized_spin_potentials(
-      smallest_eigenvectors_old, ylm, area_element);
-  double old_spin =
-      get_spin_magnitude(potentials_old, spin_function, area_element, ylm);
+  // // Get normalized potentials (Kerr normalization) corresponding to the
+  // // eigenvectors with three smallest-magnitude eigenvalues.
+  // const auto potentials_old = get_normalized_spin_potentials(
+  //     smallest_eigenvectors_old, ylm, area_element);
+  // double old_spin =
+  //     get_spin_magnitude(potentials_old, spin_function, area_element, ylm);
 
   const auto surface_metric = get_surface_metric(spatial_metric, tangents);
   const auto inverse_surface_metric =
       determinant_and_inverse(surface_metric).second;
+
+  std::cout << "\n\n\n Surface before passing \n\n\n";
+  DataVector R_spec = ylm.phys_to_spec(ricci_scalar.get());
+
+  for (size_t j = 0; j < R_spec.size(); j++) {
+    std::cout << j << " R: " << R_spec[j] << "\n";
+  }
+
+  std::cout << "\n\n\n Surface before passing \n\n\n";
+  DataVector g_00 = ylm.phys_to_spec(spatial_metric.get(0, 0));
+  DataVector g_10 = ylm.phys_to_spec(spatial_metric.get(1, 0));
+  DataVector g_11 = ylm.phys_to_spec(spatial_metric.get(1, 1));
+
+  for (size_t j = 0; j < g_00.size(); j++) {
+    std::cout << j << " G: " << g_00[j] << " , " << g_10[j] << " , " << g_11[j]
+              << "\n";
+  }
+
+  DataVector sg_00 = ylm.phys_to_spec(surface_metric.get(0, 0));
+  DataVector sg_10 = ylm.phys_to_spec(surface_metric.get(1, 0));
+  DataVector sg_11 = ylm.phys_to_spec(surface_metric.get(1, 1));
+
+  for (size_t j = 0; j < sg_00.size(); j++) {
+    std::cout << j << " G_SURF: " << sg_00[j] << " , " << sg_10[j] << " , "
+              << sg_11[j] << "\n";
+  }
+
+  DataVector ginv_00 = ylm.phys_to_spec(inverse_surface_metric.get(0, 0));
+  DataVector ginv_10 = ylm.phys_to_spec(inverse_surface_metric.get(1, 0));
+  DataVector ginv_11 = ylm.phys_to_spec(inverse_surface_metric.get(1, 1));
+
+  for (size_t j = 0; j < ginv_00.size(); j++) {
+    std::cout << j << " G_SURFINV: " << ginv_00[j] << " , " << ginv_10[j]
+              << " , " << ginv_11[j] << "\n";
+  }
+  std::cout << "\n\n\n Surface before passing DONE \n\n\n";
 
   const auto trace_christoffel_second_kind_angle_free =
       get_trace_christoffel_second_kind_angle_free(
@@ -1196,9 +1375,58 @@ double dimensionful_spin_magnitude(
       get_spin_magnitude_spec(potentials, area_element, ylm, unit_normal_vector,
                               extrinsic_curvature, tangents);
 
-  std::cout << std::setprecision(15) << "old_spin: " << old_spin
-            << "\nangle_free_spin is: " << angle_free_spin
-            << "\nnew_spec_spin is: " << new_spec_spin << "\n";
+  // std::cout << std::setprecision(15) << "old_spin: " << old_spin
+  //           << "\nangle_free_spin is: " << angle_free_spin
+  //           << "\nnew_spec_spin is: " << new_spec_spin << "\nMy Evals are:
+  //           \n"
+  //           << eigenvalues_real_part[0] << "\n"
+  //           << eigenvalues_real_part[1] << "\n"
+  //           << eigenvalues_real_part[2] << "\n"
+  //           << "\nOld Evals are: \n"
+  //           << eigenvalues_real_part_old[0] << "\n"
+  //           << eigenvalues_real_part_old[1] << "\n"
+  //           << eigenvalues_real_part_old[2] << "\n";
+
+  // std::ofstream mat_diff_file_Rmat(
+  //     "/home/himanshu/Desktop/bh_spin_project/spectre/build/"
+  //     "mat_diff_file_Rmat.csv");
+  // if (mat_diff_file_Rmat.is_open()) {
+  //   std::cout << "Writing to the file\n ";
+  // } else {
+  //   std::cout << "Failed to open the file\n";
+  // }
+  // mat_diff_file_Rmat << "i,j, Old_Rmat, New_Rmat, diff_Rmat\n";
+  // // double diff_Rmat = 0.0;
+  // for (size_t i = 0; i < matrix_dimension; i++) {
+  //   for (size_t j = 0; j < matrix_dimension; j++) {
+  //     mat_diff_file_Rmat << i << ", " << j << ", " << right_matrix_old(i, j)
+  //                        << ", " << right_matrix(i, j) << ", "
+  //                        << right_matrix_old(i, j) - right_matrix(i, j)
+  //                        << "  \n";
+  //   }
+  // }
+  // mat_diff_file_Rmat.close();
+
+  // std::ofstream mat_diff_file_Lmat(
+  //     "/home/himanshu/Desktop/bh_spin_project/spectre/build/"
+  //     "mat_diff_file_Lmat.csv");
+  // if (mat_diff_file_Lmat.is_open()) {
+  //   std::cout << "Writing to the file\n ";
+  // } else {
+  //   std::cout << "Failed to open the file\n";
+  // }
+  // mat_diff_file_Lmat << "i,j, Old_Lmat, New_Lmat, diff_Lmat\n";
+  // // double diff_Lmat = 0.0;
+  // for (size_t i = 0; i < matrix_dimension; i++) {
+  //   for (size_t j = 0; j < matrix_dimension; j++) {
+  //     mat_diff_file_Lmat << i << ", " << j << ", " << left_matrix_old(i, j)
+  //                        << ", " << left_matrix(i, j) << " , "
+  //                        << left_matrix_old(i, j) - left_matrix(i, j) << "
+  //                        \n";
+  //   }
+  // }
+  // mat_diff_file_Lmat.close();
+
   return angle_free_spin;
 }
 
