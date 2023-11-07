@@ -223,6 +223,11 @@ class ScaledKerrSchild : public AnalyticSolution<3_st>,
     static constexpr Options::String help = {"Mass of the black hole"};
     static type lower_bound() { return 0.; }
   };
+  struct Scale {
+    using type = double;
+    static constexpr Options::String help = {"Scale of SKS"};
+    static type lower_bound() { return 0.; }
+  };
   struct Spin {
     using type = std::array<double, volume_dim>;
     static constexpr Options::String help = {
@@ -233,7 +238,7 @@ class ScaledKerrSchild : public AnalyticSolution<3_st>,
     static constexpr Options::String help = {
         "The [x,y,z] center of the black hole"};
   };
-  using options = tmpl::list<Mass, Spin, Center>;
+  using options = tmpl::list<Mass, Scale, Spin, Center>;
   static constexpr Options::String help{
       "Black hole in Kerr-Schild coordinates"};
 
@@ -565,6 +570,7 @@ class ScaledKerrSchild : public AnalyticSolution<3_st>,
     // then null_vector_0 can be something different, so we leave it coded
     // in instead of eliminating it.
     static constexpr double null_vector_0_ = -1.0;
+    const double jac_factor_ = jac_factor();
   };
 
  private:

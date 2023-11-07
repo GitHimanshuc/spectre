@@ -467,6 +467,7 @@ void ScaledKerrSchild::IntermediateComputer<DataType, Frame>::operator()(
                                2.0 * null_vector_0_ * lapse_squared *
                                    (null_form.get(i) * deriv_H.get(m) +
                                     H * deriv_null_form.get(m, i));
+      deriv_shift->get(m, i) /= solution_.jac_factor();
     }
   }
 }
@@ -623,7 +624,6 @@ ScaledKerrSchild::IntermediateVars<DataType, Frame>::get_var(
 
   for (size_t i = 0; i < 3; ++i) {
     result.get(i) = deriv_lapse_multiplier * deriv_H.get(i);
-    result.get(i) *= jac_factor_;
   }
   return result;
 }
@@ -651,7 +651,7 @@ Scalar<DataType> ScaledKerrSchild::IntermediateVars<DataType, Frame>::get_var(
     gr::Tags::SqrtDetSpatialMetric<DataType> /*meta*/) {
   // All elements of the metric are multiplied by sqr(jac_factor_)
   // thus the det gets multiplied by cube(sqr(jac_factor_))
-  return Scalar<DataType>(1.0 * cube(sqr(jac_factor_)) /
+  return Scalar<DataType>(1.0 * cube(jac_factor_*jac_factor_) /
                           get(get_var(computer, gr::Tags::Lapse<DataType>{})));
 }
 
@@ -669,7 +669,7 @@ ScaledKerrSchild::IntermediateVars<DataType, Frame>::get_var(
     result.get(i) = 2.0 * square(null_vector_0_) * deriv_H.get(i);
     // All elements of the metric are multiplied by sqr(jac_factor_)
     // thus the det gets multiplied by cube(sqr(jac_factor_))
-    result.get(i) *= cube(sqr(jac_factor_));
+    result.get(i) *= cube(jac_factor_*jac_factor_);
   }
 
   return result;
