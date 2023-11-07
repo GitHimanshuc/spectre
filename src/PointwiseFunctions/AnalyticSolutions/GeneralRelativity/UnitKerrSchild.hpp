@@ -283,7 +283,7 @@ class ScaledKerrSchild : public AnalyticSolution<3_st>,
 
   double mass() const { return mass_; }
   double scale() const { return scale_; }
-  double jac_factor() const { return mass_ / scale_; }
+  double jac_factor() const { return jac_factor_; }
   const std::array<double, volume_dim>& center() const { return center_; }
   const std::array<double, volume_dim>& dimensionless_spin() const {
     return dimensionless_spin_;
@@ -570,6 +570,7 @@ class ScaledKerrSchild : public AnalyticSolution<3_st>,
  private:
   double mass_{std::numeric_limits<double>::signaling_NaN()};
   double scale_{std::numeric_limits<double>::signaling_NaN()};
+  double jac_factor_{std::numeric_limits<double>::signaling_NaN()};
   std::array<double, volume_dim> dimensionless_spin_ =
       make_array<volume_dim>(std::numeric_limits<double>::signaling_NaN());
   std::array<double, volume_dim> center_ =
