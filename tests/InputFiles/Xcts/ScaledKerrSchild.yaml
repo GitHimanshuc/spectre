@@ -1,0 +1,165 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: SolveXcts
+Testing:
+  Check: parse;execute_check_output
+  Timeout: 40
+  Priority: High
+ExpectedOutput:
+  - KerrSchildReductions.h5
+  - KerrSchildVolume0.h5
+OutputFileChecks:
+  - Label: Discretization error
+    Subfile: /ErrorNorms.dat
+    FileGlob: KerrSchildReductions.h5
+    SkipColumns: [0, 1, 2]
+    AbsoluteTolerance: 0.08
+
+---
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+  Singletons: Auto
+
+Background:
+  ScaledKerrSchild:
+    Mass: 1.
+    Scale: 1.
+    Spin: [0., 0., 0.]
+    Center: [0., 0., 0.]
+
+InitialGuess: Flatness
+
+DomainCreator:
+  Sphere:
+    InnerRadius: 1.9
+    OuterRadius: 10.
+    Interior:
+      ExciseWithBoundaryCondition:
+        AnalyticSolution:
+          ConformalFactor: Dirichlet
+          LapseTimesConformalFactor: Dirichlet
+          ShiftExcess: Dirichlet
+    InitialRefinement: 0
+    InitialGridPoints: 4
+    UseEquiangularMap: True
+    EquatorialCompression: None
+    WhichWedges: All
+    RadialPartitioning: []
+    RadialDistribution: [Logarithmic]
+    TimeDependentMaps: None
+    OuterBoundaryCondition:
+      AnalyticSolution:
+        ConformalFactor: Dirichlet
+        LapseTimesConformalFactor: Dirichlet
+        ShiftExcess: Dirichlet
+
+Discretization:
+  DiscontinuousGalerkin:
+    PenaltyParameter: 1.
+    Massive: True
+
+Observers:
+  VolumeFileName: "KerrSchildVolume"
+  ReductionFileName: "KerrSchildReductions"
+
+NonlinearSolver:
+  NewtonRaphson:
+    ConvergenceCriteria:
+      # Stop after 1 iteration so this test runs quickly. Set MaxIterations to
+      # ~20 for runs at higher resolution (most nonlinear problems need ~5
+      # iterations, so 20 is a safe setting).
+      MaxIterations: 1
+      RelativeResidual: 0.
+      AbsoluteResidual: 1.e-10
+    SufficientDecrease: 1.e-4
+    MaxGlobalizationSteps: 40
+    DampingFactor: 1.
+    Verbosity: Quiet
+
+LinearSolver:
+  Gmres:
+    ConvergenceCriteria:
+      MaxIterations: 30
+      RelativeResidual: 1.e-4
+      AbsoluteResidual: 1.e-12
+    Verbosity: Quiet
+
+  Multigrid:
+    Iterations: 1
+    MaxLevels: Auto
+    PreSmoothing: True
+    PostSmoothingAtBottom: False
+    Verbosity: Silent
+    OutputVolumeData: False
+
+  SchwarzSmoother:
+    Iterations: 3
+    MaxOverlap: 2
+    Verbosity: Silent
+    SubdomainSolver:
+      Gmres:
+        ConvergenceCriteria:
+          MaxIterations: 3
+          RelativeResidual: 1.e-4
+          AbsoluteResidual: 1.e-12
+        Verbosity: Silent
+        Restart: None
+        Preconditioner:
+          MinusLaplacian:
+            Solver:
+              ExplicitInverse:
+                WriteMatrixToFile: None
+            BoundaryConditions: Auto
+    SkipResets: True
+    ObservePerCoreReductions: False
+
+RadiallyCompressedCoordinates: None
+
+EventsAndTriggers:
+  - Trigger: HasConverged
+    Events:
+      - ObserveNorms:
+          SubfileName: ErrorNorms
+          TensorsToObserve:
+            - Name: Error(ConformalFactor)
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(LapseTimesConformalFactor)
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(ShiftExcess)
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(Flux(ConformalFactor))
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(Flux(LapseTimesConformalFactor))
+              NormType: L2Norm
+              Components: Sum
+            - Name: Error(LongitudinalShiftExcess)
+              NormType: L2Norm
+              Components: Sum
+      - ObserveNorms:
+          SubfileName: Norms
+          TensorsToObserve:
+            - Name: HamiltonianConstraint
+              NormType: L2Norm
+              Components: Individual
+            - Name: MomentumConstraint
+              NormType: L2Norm
+              Components: Individual
+      - ObserveFields:
+          SubfileName: VolumeData
+          VariablesToObserve:
+            - ConformalFactor
+            - Lapse
+            - Shift
+            - SpatialMetric
+            - ExtrinsicCurvature
+            - HamiltonianConstraint
+            - MomentumConstraint
+          InterpolateToMesh: None
+          CoordinatesFloatingPointType: Double
+          FloatingPointTypes: [Double]

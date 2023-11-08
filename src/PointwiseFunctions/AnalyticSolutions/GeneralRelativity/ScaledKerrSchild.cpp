@@ -1,7 +1,7 @@
 // Distributed under the MIT License.
 // See LICENSE.txt for details.
 
-#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/UnitKerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/ScaledKerrSchild.hpp"
 
 #include <cmath>  // IWYU pragma: keep
 #include <numeric>
@@ -651,7 +651,10 @@ Scalar<DataType> ScaledKerrSchild::IntermediateVars<DataType, Frame>::get_var(
     gr::Tags::SqrtDetSpatialMetric<DataType> /*meta*/) {
   // All elements of the metric are multiplied by sqr(jac_factor_)
   // thus the det gets multiplied by cube(sqr(jac_factor_))
-  return Scalar<DataType>(1.0 * cube(jac_factor_*jac_factor_) /
+
+  return Scalar<DataType>(1.0 *
+                          cube(computer.solution().jac_factor() *
+                               computer.solution().jac_factor()) /
                           get(get_var(computer, gr::Tags::Lapse<DataType>{})));
 }
 
@@ -669,7 +672,8 @@ ScaledKerrSchild::IntermediateVars<DataType, Frame>::get_var(
     result.get(i) = 2.0 * square(null_vector_0_) * deriv_H.get(i);
     // All elements of the metric are multiplied by sqr(jac_factor_)
     // thus the det gets multiplied by cube(sqr(jac_factor_))
-    result.get(i) *= cube(jac_factor_*jac_factor_);
+    result.get(i) *= cube(computer.solution().jac_factor() *
+                          computer.solution().jac_factor());
   }
 
   return result;

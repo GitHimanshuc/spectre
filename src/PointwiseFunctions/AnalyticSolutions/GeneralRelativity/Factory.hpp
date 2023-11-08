@@ -9,6 +9,7 @@
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/HarmonicSchwarzschild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Minkowski.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/ScaledKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/SphericalKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "Utilities/TMPL.hpp"
@@ -23,6 +24,7 @@ using all_solutions =
                      Dim == 3,
                      tmpl::list<WrappedGr<gr::Solutions::HarmonicSchwarzschild>,
                                 WrappedGr<gr::Solutions::KerrSchild>,
+                                WrappedGr<gr::Solutions::ScaledKerrSchild>,
                                 WrappedGr<gr::Solutions::SphericalKerrSchild>>,
                      tmpl::list<>>>;
 }  // namespace gh::Solutions

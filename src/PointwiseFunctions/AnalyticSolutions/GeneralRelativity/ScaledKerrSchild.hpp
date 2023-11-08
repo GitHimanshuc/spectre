@@ -570,7 +570,7 @@ class ScaledKerrSchild : public AnalyticSolution<3_st>,
     // then null_vector_0 can be something different, so we leave it coded
     // in instead of eliminating it.
     static constexpr double null_vector_0_ = -1.0;
-    const double jac_factor_ = jac_factor();
+    // const double jac_factor_ = ScaledKerrSchild::jac_factor();
   };
 
  private:

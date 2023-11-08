@@ -12,7 +12,7 @@ spectre_target_sources(
   HarmonicSchwarzschild.cpp
   KerrHorizon.cpp
   KerrSchild.cpp
-  UnitKerrSchild.cpp
+  ScaledKerrSchild.cpp
   Minkowski.cpp
   SphericalKerrSchild.cpp
   WrappedGr.cpp
@@ -27,7 +27,7 @@ spectre_target_headers(
   HarmonicSchwarzschild.hpp
   KerrHorizon.hpp
   KerrSchild.hpp
-  UnitKerrSchild.hpp
+  ScaledKerrSchild.hpp
   Minkowski.hpp
   Solutions.hpp
   SphericalKerrSchild.hpp

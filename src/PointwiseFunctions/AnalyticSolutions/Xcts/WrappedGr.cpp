@@ -16,6 +16,7 @@
 #include "PointwiseFunctions/AnalyticData/GrMhd/MagnetizedTovStar.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/HarmonicSchwarzschild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/ScaledKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/SphericalKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/RelativisticEuler/RotatingStar.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Xcts/CommonVariables.tpp"
@@ -454,6 +455,7 @@ template class Xcts::AnalyticData::CommonVariables<
   template class Xcts::Solutions::WrappedGr<STYPE(data), true>;
 
 GENERATE_INSTANTIATIONS(INSTANTIATE_GR, (gr::Solutions::KerrSchild,
+                                         gr::Solutions::ScaledKerrSchild,
                                          gr::Solutions::SphericalKerrSchild,
                                          gr::Solutions::HarmonicSchwarzschild))
 GENERATE_INSTANTIATIONS(INSTANTIATE_GRMHD,
