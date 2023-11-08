@@ -109,6 +109,7 @@
 #include "PointwiseFunctions/AnalyticData/GhScalarTensor/Factory.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Factory.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/ScaledKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/SphericalKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Tags.hpp"

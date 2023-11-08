@@ -7,6 +7,7 @@
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/HarmonicSchwarzschild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/Minkowski.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/ScaledKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/SphericalKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/WrappedGr.tpp"
 #include "Utilities/GenerateInstantiations.hpp"
@@ -17,4 +18,4 @@ GENERATE_INSTANTIATIONS(
      gr::Solutions::GaugeWave<2>, gr::Solutions::GaugeWave<3>,
      gr::Solutions::Minkowski<1>, gr::Solutions::Minkowski<2>,
      gr::Solutions::Minkowski<3>, gr::Solutions::KerrSchild,
-     gr::Solutions::SphericalKerrSchild))
+     gr::Solutions::ScaledKerrSchild, gr::Solutions::SphericalKerrSchild))

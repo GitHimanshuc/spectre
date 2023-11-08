@@ -7,6 +7,7 @@
 #include "PointwiseFunctions/AnalyticData/GrMhd/MagnetizedTovStar.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/HarmonicSchwarzschild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/ScaledKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/SphericalKerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/RelativisticEuler/RotatingStar.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Xcts/Flatness.hpp"
@@ -20,6 +21,7 @@ namespace Xcts {
 namespace Solutions {
 using all_analytic_solutions =
     tmpl::list<Flatness, WrappedGr<gr::Solutions::KerrSchild>,
+               WrappedGr<gr::Solutions::ScaledKerrSchild>,
                WrappedGr<gr::Solutions::SphericalKerrSchild>, Schwarzschild,
                WrappedGr<gr::Solutions::HarmonicSchwarzschild>, TovStar,
                WrappedGrMhd<RelativisticEuler::Solutions::RotatingStar>,

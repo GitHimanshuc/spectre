@@ -23,6 +23,10 @@ ResourceInfo:
   Singletons: Auto
 
 Background:
+  # KerrSchild:
+  #   Mass: 1.
+  #   Spin: [0., 0., 0.]
+  #   Center: [0., 0., 0.]
   ScaledKerrSchild:
     Mass: 1.
     Scale: 1.
@@ -70,13 +74,13 @@ NonlinearSolver:
       # Stop after 1 iteration so this test runs quickly. Set MaxIterations to
       # ~20 for runs at higher resolution (most nonlinear problems need ~5
       # iterations, so 20 is a safe setting).
-      MaxIterations: 1
+      MaxIterations: 20
       RelativeResidual: 0.
       AbsoluteResidual: 1.e-10
     SufficientDecrease: 1.e-4
     MaxGlobalizationSteps: 40
     DampingFactor: 1.
-    Verbosity: Quiet
+    Verbosity: Verbose
 
 LinearSolver:
   Gmres:
@@ -84,7 +88,7 @@ LinearSolver:
       MaxIterations: 30
       RelativeResidual: 1.e-4
       AbsoluteResidual: 1.e-12
-    Verbosity: Quiet
+    Verbosity: Verbose
 
   Multigrid:
     Iterations: 1
