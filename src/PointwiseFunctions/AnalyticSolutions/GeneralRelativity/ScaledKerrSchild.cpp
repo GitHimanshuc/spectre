@@ -366,7 +366,7 @@ void ScaledKerrSchild::IntermediateComputer<DataType, Frame>::operator()(
           (gsl::at(spin_a, i) * gsl::at(spin_a, j) / r +
            (x_minus_center.get(i) - 2.0 * r * null_form.get(i) -
             a_dot_x_over_rsquared * gsl::at(spin_a, i)) *
-               deriv_log_r.get(j) * r);
+               deriv_log_r.get(j) / solution_.jac_factor() * r);
       if (i == j) {
         deriv_null_form->get(j, i) += solution_.jac_factor() * denom * r;
       } else {  //  add solution_.jac_factor()*denom*epsilon^ijk a_k
