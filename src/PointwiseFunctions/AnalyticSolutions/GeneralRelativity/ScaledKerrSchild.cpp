@@ -402,6 +402,7 @@ void ScaledKerrSchild::IntermediateComputer<DataType, Frame>::operator()(
   const auto& lapse_squared =
       get(cache->get_var(*this, internal_tags::lapse_squared<DataType>{}));
   get(*lapse) = sqrt(lapse_squared);
+  get(*lapse) *= solution_.jac_factor();
 }
 
 template <typename DataType, typename Frame>
@@ -413,7 +414,8 @@ void ScaledKerrSchild::IntermediateComputer<DataType, Frame>::operator()(
   const auto& lapse_squared =
       get(cache->get_var(*this, internal_tags::lapse_squared<DataType>{}));
   get(*deriv_lapse_multiplier) =
-      -square(null_vector_0_) * lapse * lapse_squared;
+      -square(null_vector_0_) * cube(lapse) /
+      (solution_.jac_factor() * solution_.jac_factor());
 }
 
 template <typename DataType, typename Frame>
@@ -440,7 +442,7 @@ void ScaledKerrSchild::IntermediateComputer<DataType, Frame>::operator()(
 
   for (size_t i = 0; i < 3; ++i) {
     shift->get(i) = shift_multiplier * null_form.get(i);
-    shift->get(i) /= solution_.jac_factor();
+    // shift->get(i) /= solution_.jac_factor();
   }
 }
 
@@ -467,7 +469,7 @@ void ScaledKerrSchild::IntermediateComputer<DataType, Frame>::operator()(
                                2.0 * null_vector_0_ * lapse_squared *
                                    (null_form.get(i) * deriv_H.get(m) +
                                     H * deriv_null_form.get(m, i));
-      deriv_shift->get(m, i) /= solution_.jac_factor();
+      // deriv_shift->get(m, i) /= solution_.jac_factor();
     }
   }
 }
@@ -655,7 +657,8 @@ Scalar<DataType> ScaledKerrSchild::IntermediateVars<DataType, Frame>::get_var(
   return Scalar<DataType>(1.0 *
                           cube(computer.solution().jac_factor() *
                                computer.solution().jac_factor()) /
-                          get(get_var(computer, gr::Tags::Lapse<DataType>{})));
+                          (get(get_var(computer, gr::Tags::Lapse<DataType>{})) /
+                           computer.solution().jac_factor()));
 }
 
 template <typename DataType, typename Frame>
