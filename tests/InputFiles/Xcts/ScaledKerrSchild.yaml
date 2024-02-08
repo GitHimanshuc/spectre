@@ -22,14 +22,14 @@ ResourceInfo:
   AvoidGlobalProc0: false
   Singletons: Auto
 
-Background:
+Background: &kerr_sol
   # KerrSchild:
   #   Mass: 1.
   #   Spin: [0., 0., 0.]
   #   Center: [0., 0., 0.]
   ScaledKerrSchild:
     Mass: 1.
-    Scale: 1.
+    Scale: 0.5
     Spin: [0., 0., 0.]
     Center: [0., 0., 0.]
 
@@ -37,14 +37,15 @@ InitialGuess: Flatness
 
 DomainCreator:
   Sphere:
-    InnerRadius: 1.9
+    InnerRadius: 0.9
     OuterRadius: 10.
     Interior:
       ExciseWithBoundaryCondition:
-        AnalyticSolution:
-          ConformalFactor: Dirichlet
-          LapseTimesConformalFactor: Dirichlet
-          ShiftExcess: Dirichlet
+        ApparentHorizon:
+          Center: [0., 0., 0.]
+          Rotation: [0., 0., 0.]
+          Lapse: *kerr_sol
+          NegativeExpansion: *kerr_sol
     InitialRefinement: 0
     InitialGridPoints: 4
     UseEquiangularMap: True
@@ -85,7 +86,7 @@ NonlinearSolver:
 LinearSolver:
   Gmres:
     ConvergenceCriteria:
-      MaxIterations: 30
+      MaxIterations: 100
       RelativeResidual: 1.e-4
       AbsoluteResidual: 1.e-12
     Verbosity: Verbose
@@ -164,6 +165,9 @@ EventsAndTriggers:
             - ExtrinsicCurvature
             - HamiltonianConstraint
             - MomentumConstraint
+            - Error(ConformalFactor)
+            - Error(LapseTimesConformalFactor)
+            - Error(ShiftExcess)
           InterpolateToMesh: None
           CoordinatesFloatingPointType: Double
           FloatingPointTypes: [Double]

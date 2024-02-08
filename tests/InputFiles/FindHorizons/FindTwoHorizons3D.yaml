@@ -1,0 +1,121 @@
+# Distributed under the MIT License.
+# See LICENSE.txt for details.
+
+Executable: FindTwoHorizons3D
+Testing:
+  Check: parse
+  Priority: High
+
+---
+
+ResourceInfo:
+  AvoidGlobalProc0: false
+  Singletons: Auto
+
+DomainCreator:
+  BinaryCompactObject:
+    ObjectA:
+      InnerRadius: 0.8
+      OuterRadius: 4.
+      XCoord: 8.
+      Interior: Excise
+      UseLogarithmicMap: true
+    ObjectB:
+      InnerRadius: 0.8
+      OuterRadius: 4.
+      XCoord: -8.0
+      Interior: Excise
+      UseLogarithmicMap: true
+    Envelope:
+      Radius: &outer_shell_inner_radius 60.
+      RadialDistribution: Projective
+    OuterShell:
+      Radius: &outer_radius 300.
+      RadialDistribution: &outer_shell_distribution Inverse
+      OpeningAngle: 90.0
+    UseEquiangularMap: true
+    # This h-refinement is set up so spherical wedges have equal angular size.
+    # Once the domain supports equatorial compression (or similar) this
+    # h-refinement will simplify considerably.
+    InitialRefinement:
+      ObjectAShell: [1, 1, 1]
+      ObjectBShell: [1, 1, 1]
+      ObjectACube: [1, 1, 1]
+      ObjectBCube: [1, 1, 1]
+      EnvelopeUpperZLeft: [1, 1, 1]
+      EnvelopeLowerZLeft: [1, 1, 1]
+      EnvelopeUpperYLeft: [1, 1, 1]
+      EnvelopeLowerYLeft: [1, 1, 1]
+      EnvelopeLowerX: [1, 1, 1]
+      EnvelopeUpperZRight: [1, 1, 1]
+      EnvelopeLowerZRight: [1, 1, 1]
+      EnvelopeUpperYRight: [1, 1, 1]
+      EnvelopeLowerYRight: [1, 1, 1]
+      EnvelopeUpperX: [1, 1, 1]
+      OuterShellUpperZLeft: [0, 1, 0]
+      OuterShellLowerZLeft: [0, 1, 0]
+      OuterShellUpperYLeft: [0, 1, 0]
+      OuterShellLowerYLeft: [0, 1, 0]
+      OuterShellLowerX: [1, 1, 0]
+      OuterShellUpperZRight: [0, 1, 0]
+      OuterShellLowerZRight: [0, 1, 0]
+      OuterShellUpperYRight: [0, 1, 0]
+      OuterShellLowerYRight: [0, 1, 0]
+      OuterShellUpperX: [1, 1, 0]
+    # This p-refinement represents a crude manual optimization of the domain. We
+    # will need AMR to optimize the domain further.
+    InitialGridPoints:
+      ObjectAShell: [6, 6, 10]
+      ObjectBShell: [6, 6, 10]
+      ObjectACube: [6, 6, 7]
+      ObjectBCube: [6, 6, 7]
+      Envelope: [6, 6, 6]
+      OuterShell: [6, 6, 6]
+
+
+Importers:
+  VolumeData:
+    FileGlob: "BbhVolume*.h5"
+    Subgroup: "VolumeData"
+    ObservationValue: Last
+    Interpolate: False
+
+ApparentHorizons:
+  AhA:
+    InitialGuess:
+      LMax: 10
+      Radius: 1.0
+      Center: [8., 0., 0.]
+    FastFlow:
+      Flow: Fast
+      Alpha: 1.
+      Beta: 0.5
+      AbsTol: 1.e-12
+      TruncationTol: 0.01
+      DivergenceTol: 1.2
+      DivergenceIter: 5
+      MaxIts: 100
+    Verbosity: Verbose
+  AhB:
+    InitialGuess:
+      LMax: 10
+      Radius: 1.0
+      Center: [-8.0, 0., 0.]
+    FastFlow:
+      Flow: Fast
+      Alpha: 1.
+      Beta: 0.5
+      AbsTol: 1.e-12
+      TruncationTol: 0.01
+      DivergenceTol: 1.2
+      DivergenceIter: 5
+      MaxIts: 100
+    Verbosity: Verbose
+
+Observers:
+  VolumeFileName: FindTwoHorizons3DVolume
+  ReductionFileName: FindTwoHorizons3DReductions
+  SurfaceFileName: FindTwoHorizons3DSurfaces
+
+Interpolator:
+  DumpVolumeDataOnFailure: false
