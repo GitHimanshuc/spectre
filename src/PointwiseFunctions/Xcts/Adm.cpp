@@ -107,4 +107,136 @@ tnsr::I<DataVector, 3> adm_mass_surface_integrand(
   return result;
 }
 
+// Intermediate terms for ADM linear momentum and angular momentum
+void adm_intermediate_P(gsl::not_null<tnsr::II<DataVector, 3>*> result,
+                        const Scalar<DataVector>& conformal_factor,
+                        const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+                        const tnsr::II<DataVector, 3>& inv_spatial_metric,
+                        const Scalar<DataVector>& trace_extrinsic_curvature) {
+  tenex::evaluate<ti::I, ti::J>(
+      result,
+      pow<10>(conformal_factor()) *
+          (inv_extrinsic_curvature(ti::I, ti::J) -
+           trace_extrinsic_curvature() * inv_spatial_metric(ti::I, ti::J)));
+}
+
+tnsr::II<DataVector, 3> adm_intermediate_P(
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const Scalar<DataVector>& trace_extrinsic_curvature) {
+  tnsr::II<DataVector, 3> result{get_size(get(conformal_factor))};
+  adm_intermediate_P(make_not_null(&result), conformal_factor,
+                     inv_extrinsic_curvature, inv_spatial_metric,
+                     trace_extrinsic_curvature);
+  return result;
+}
+
+void adm_intermediate_G(
+    gsl::not_null<tnsr::I<DataVector, 3>*> result,
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::i<DataVector, 3>& conformal_factor_deriv,
+    const tnsr::II<DataVector, 3>& intermediate_P,
+    const tnsr::ii<DataVector, 3>& conformal_metric,
+    const tnsr::II<DataVector, 3>& inv_conformal_metric,
+    const tnsr::Ijj<DataVector, 3>& conformal_christoffel_second_kind) {
+  const auto cmetric_jk_P_JK = tenex::evaluate(conformal_metric(ti::j, ti::k) *
+                                               intermediate_P(ti::J, ti::K));
+  const auto contracted_con_christoffel_Jjk = tenex::evaluate<ti::k>(
+      conformal_christoffel_second_kind(ti::J, ti::j, ti::k));
+  const auto cmetric_IL_par_l_lnconfac = tenex::evaluate<ti::I>(
+      inv_conformal_metric(ti::I, ti::L) * conformal_factor_deriv(ti::l) /
+      conformal_factor());
+
+  tenex::evaluate<ti::I>(
+      result,
+      conformal_christoffel_second_kind(ti::I, ti::j, ti::k) *
+              intermediate_P(ti::J, ti::K) +
+          contracted_con_christoffel_Jjk(ti::k) * intermediate_P(ti::I, ti::K) -
+          2 * cmetric_jk_P_JK() * cmetric_IL_par_l_lnconfac(ti::I));
+}
+
+tnsr::I<DataVector, 3> adm_intermediate_G(
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::i<DataVector, 3>& conformal_factor_deriv,
+    const tnsr::II<DataVector, 3>& intermediate_P,
+    const tnsr::ii<DataVector, 3>& conformal_metric,
+    const tnsr::II<DataVector, 3>& inv_conformal_metric,
+    const tnsr::Ijj<DataVector, 3>& conformal_christoffel_second_kind
+
+) {
+  tnsr::I<DataVector, 3> result{get_size(get(conformal_factor))};
+  adm_intermediate_G(make_not_null(&result), conformal_factor,
+                     conformal_factor_deriv, intermediate_P, conformal_metric,
+                     inv_conformal_metric, conformal_christoffel_second_kind);
+  return result;
+}
+
+// ADM linear momentum
+void adm_linear_momentum_surface_integrand(
+    gsl::not_null<tnsr::II<DataVector, 3>*> result,
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const Scalar<DataVector>& trace_extrinsic_curvature) {
+  const auto intermediate_P =
+      adm_intermediate_P(conformal_factor, inv_extrinsic_curvature,
+                         inv_spatial_metric, trace_extrinsic_curvature);
+  tenex::evaluate<ti::I, ti::J>(result,
+                                1 / (8 * M_PI) * intermediate_P(ti::I, ti::J));
+}
+tnsr::II<DataVector, 3> adm_linear_momentum_surface_integrand(
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const Scalar<DataVector>& trace_extrinsic_curvature) {
+  tnsr::II<DataVector, 3> result{get_size(get(conformal_factor))};
+  adm_linear_momentum_surface_integrand(
+      make_not_null(&result), conformal_factor, inv_extrinsic_curvature,
+      inv_spatial_metric, trace_extrinsic_curvature);
+  return result;
+}
+
+// FIXME::Decay the value of G
+void adm_linear_momentum_volume_integrand(
+    gsl::not_null<tnsr::I<DataVector, 3>*> result,
+    const Scalar<DataVector>& conformal_factor,
+    const Scalar<DataVector>& trace_extrinsic_curvature,
+    const tnsr::i<DataVector, 3>& conformal_factor_deriv,
+    const tnsr::ii<DataVector, 3>& conformal_metric,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const tnsr::II<DataVector, 3>& inv_conformal_metric,
+    const tnsr::Ijj<DataVector, 3>& conformal_christoffel_second_kind) {
+  const tnsr::II<DataVector, 3> intermediate_P =
+      adm_intermediate_P(conformal_factor, inv_extrinsic_curvature,
+                         inv_spatial_metric, trace_extrinsic_curvature);
+  const tnsr::I<DataVector, 3> intermediate_G =
+      adm_intermediate_G(conformal_factor, conformal_factor_deriv,
+                         intermediate_P, conformal_metric, inv_conformal_metric,
+                         conformal_christoffel_second_kind);
+  tenex::evaluate<ti::I>(result, -1 / (8 * M_PI) * intermediate_G(ti::I));
+}
+
+tnsr::I<DataVector, 3> adm_linear_momentum_volume_integrand(
+    const Scalar<DataVector>& conformal_factor,
+    const Scalar<DataVector>& trace_extrinsic_curvature,
+    const tnsr::i<DataVector, 3>& conformal_factor_deriv,
+    const tnsr::ii<DataVector, 3>& conformal_metric,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const tnsr::II<DataVector, 3>& inv_conformal_metric,
+    const tnsr::Ijj<DataVector, 3>& conformal_christoffel_second_kind) {
+  tnsr::I<DataVector, 3> result;
+  adm_linear_momentum_volume_integrand(
+      make_not_null(&result), conformal_factor, trace_extrinsic_curvature,
+      conformal_factor_deriv, conformal_metric, inv_extrinsic_curvature,
+      inv_spatial_metric, inv_conformal_metric,
+      conformal_christoffel_second_kind);
+  return result;
+}
+
+// amd angular momentum
+
+
 }  // namespace Xcts
