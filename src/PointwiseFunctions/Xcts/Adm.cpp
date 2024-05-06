@@ -153,7 +153,7 @@ void adm_intermediate_G(
       conformal_christoffel_second_kind(ti::I, ti::j, ti::k) *
               intermediate_P(ti::J, ti::K) +
           contracted_con_christoffel_Jjk(ti::k) * intermediate_P(ti::I, ti::K) -
-          2 * cmetric_jk_P_JK() * cmetric_IL_par_l_lnconfac(ti::I));
+          2.0 * cmetric_jk_P_JK() * cmetric_IL_par_l_lnconfac(ti::I));
 }
 
 tnsr::I<DataVector, 3> adm_intermediate_G(
@@ -197,7 +197,8 @@ tnsr::II<DataVector, 3> adm_linear_momentum_surface_integrand(
   return result;
 }
 
-// FIXME::Decay the value of G
+// FIXME::Decay the value of G eqn 22 of 1506.01689
+// Note that we have already included the negative sign
 void adm_linear_momentum_volume_integrand(
     gsl::not_null<tnsr::I<DataVector, 3>*> result,
     const Scalar<DataVector>& conformal_factor,
@@ -236,7 +237,124 @@ tnsr::I<DataVector, 3> adm_linear_momentum_volume_integrand(
   return result;
 }
 
-// amd angular momentum
+// ADM angular momentum
+void adm_angular_momentum_surface_integrand_full(
+    gsl::not_null<tnsr::II<DataVector, 3>*> result,
+    const tnsr::I<DataVector, 3>& coordinates,
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const Scalar<DataVector>& trace_extrinsic_curvature) {
+  const auto intermediate_P =
+      adm_intermediate_P(conformal_factor, inv_extrinsic_curvature,
+                         inv_spatial_metric, trace_extrinsic_curvature);
 
+  for (size_t i = 0; i < 3; i++) {
+    // Angular momentum is defined in a cyclic manner
+    size_t indx1 = i % 3;
+    size_t indx2 = (i + 1) % 3;
+    size_t indx3 = (i + 2) % 3;
+    for (size_t j = 0; j < 3; j++) {
+      result->get(indx3, j) =
+          (1.0 / (8 * M_PI)) *
+          (coordinates.get(indx1) * intermediate_P.get(indx2, j) -
+           coordinates.get(indx2) * intermediate_P.get(indx1, j));
+    }
+  }
+}
 
+tnsr::II<DataVector, 3> adm_angular_momentum_surface_integrand_full(
+    const tnsr::I<DataVector, 3>& coordinates,
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const Scalar<DataVector>& trace_extrinsic_curvature) {
+  tnsr::II<DataVector, 3> result;
+  adm_angular_momentum_surface_integrand_full(
+      make_not_null(&result), coordinates, conformal_factor,
+      inv_extrinsic_curvature, inv_spatial_metric, trace_extrinsic_curvature);
+  return result;
+}
+
+// Negative sign is already included
+void adm_angular_momentum_volume_integrand_full(
+    gsl::not_null<tnsr::I<DataVector, 3>*> result,
+    const tnsr::I<DataVector, 3>& coordinates,
+    const Scalar<DataVector>& conformal_factor,
+    const Scalar<DataVector>& trace_extrinsic_curvature,
+    const tnsr::i<DataVector, 3>& conformal_factor_deriv,
+    const tnsr::ii<DataVector, 3>& conformal_metric,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const tnsr::II<DataVector, 3>& inv_conformal_metric,
+    const tnsr::Ijj<DataVector, 3>& conformal_christoffel_second_kind) {
+  const tnsr::II<DataVector, 3> intermediate_P =
+      adm_intermediate_P(conformal_factor, inv_extrinsic_curvature,
+                         inv_spatial_metric, trace_extrinsic_curvature);
+  const tnsr::I<DataVector, 3> intermediate_G =
+      adm_intermediate_G(conformal_factor, conformal_factor_deriv,
+                         intermediate_P, conformal_metric, inv_conformal_metric,
+                         conformal_christoffel_second_kind);
+  for (size_t i = 0; i < 3; i++) {
+    // Angular momentum is defined in a cyclic manner
+    size_t indx1 = i % 3;
+    size_t indx2 = (i + 1) % 3;
+    size_t indx3 = (i + 2) % 3;
+    result->get(indx3) = -(1.0 / (8 * M_PI)) *
+                         (coordinates.get(indx1) * intermediate_G.get(indx2) -
+                          coordinates.get(indx2) * intermediate_G.get(indx1));
+  }
+}
+
+tnsr::I<DataVector, 3> adm_angular_momentum_volume_integrand_full(
+    const tnsr::I<DataVector, 3>& coordinates,
+    const Scalar<DataVector>& conformal_factor,
+    const Scalar<DataVector>& trace_extrinsic_curvature,
+    const tnsr::i<DataVector, 3>& conformal_factor_deriv,
+    const tnsr::ii<DataVector, 3>& conformal_metric,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature,
+    const tnsr::II<DataVector, 3>& inv_spatial_metric,
+    const tnsr::II<DataVector, 3>& inv_conformal_metric,
+    const tnsr::Ijj<DataVector, 3>& conformal_christoffel_second_kind) {
+  tnsr::I<DataVector, 3> result;
+  adm_angular_momentum_volume_integrand_full(
+      make_not_null(&result), coordinates, conformal_factor,
+      trace_extrinsic_curvature, conformal_factor_deriv, conformal_metric,
+      inv_extrinsic_curvature, inv_spatial_metric, inv_conformal_metric,
+      conformal_christoffel_second_kind);
+  return result;
+}
+
+// In practice the the full form involves cancellation of large volume terms
+// which introduces errors. We use only the surface term and that too in the
+// region where K~0 and g~\eta (maximal slicing and conformal flatness)
+void adm_angular_momentum_surface_integrand(
+    gsl::not_null<tnsr::II<DataVector, 3>*> result,
+    const tnsr::I<DataVector, 3>& coordinates,
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature) {
+  for (size_t i = 0; i < 3; i++) {
+    // Angular momentum is defined in a cyclic manner
+    size_t indx1 = i % 3;
+    size_t indx2 = (i + 1) % 3;
+    size_t indx3 = (i + 2) % 3;
+    for (size_t j = 0; j < 3; j++) {
+      result->get(indx3, j) =
+          (1.0 / (8 * M_PI)) * pow<10>(conformal_factor.get()) *
+          (coordinates.get(indx1) * inv_extrinsic_curvature.get(indx2, j) -
+           coordinates.get(indx2) * inv_extrinsic_curvature.get(indx1, j));
+    }
+  }
+}
+
+tnsr::II<DataVector, 3> adm_angular_momentum_surface_integrand(
+    const tnsr::I<DataVector, 3>& coordinates,
+    const Scalar<DataVector>& conformal_factor,
+    const tnsr::II<DataVector, 3>& inv_extrinsic_curvature) {
+  tnsr::II<DataVector, 3> result;
+  adm_angular_momentum_surface_integrand(make_not_null(&result), coordinates,
+                                         conformal_factor,
+                                         inv_extrinsic_curvature);
+  return result;
+}
 }  // namespace Xcts
