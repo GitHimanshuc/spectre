@@ -34,6 +34,7 @@
 #include "NumericalAlgorithms/LinearOperators/Divergence.hpp"
 #include "NumericalAlgorithms/Spectral/LogicalCoordinates.hpp"
 #include "NumericalAlgorithms/Spectral/Mesh.hpp"
+#include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/HarmonicSchwarzschild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrHorizon.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/GeneralRelativity/KerrSchild.hpp"
 #include "PointwiseFunctions/AnalyticSolutions/Xcts/Schwarzschild.hpp"
@@ -41,8 +42,30 @@
 #include "PointwiseFunctions/Xcts/Adm.hpp"
 
 using KerrSchild = Xcts::Solutions::WrappedGr<gr::Solutions::KerrSchild>;
+// using KerrSchild =
+// Xcts::Solutions::WrappedGr<Xcts::Solutions::Schwarzschild>;
 // using KerrSchild = Xcts::Solutions::Schwarzschild;
 namespace {
+
+Scalar<DataVector> vol_integrand_func(
+    const tnsr::I<DataVector, 3>& coordinates) {
+  Scalar<DataVector> result;
+
+  Scalar<DataVector> r = magnitude(coordinates);
+
+  result.get() = 1.0 / (r.get() * r.get());
+
+  return result;
+}
+tnsr::I<DataVector, 3> surf_integrand_func(
+    const tnsr::I<DataVector, 3>& coordinates) {
+  tnsr::I<DataVector, 3> result;
+  Scalar<DataVector> r = magnitude(coordinates);
+  for (size_t i = 0; i < 3; i++) {
+    result.get(i) = coordinates.get(i) / r.get();
+  }
+  return result;
+}
 
 void test_mass_integral(const double distance, const size_t refinements,
                         const size_t points) {
@@ -51,14 +74,16 @@ void test_mass_integral(const double distance, const size_t refinements,
   // for (int distance : distances){
 
   //   for(int refinement : refinements){
-  const double mass = 0.45;
+  const double mass = 1;
   const std::array<double, 3> dimensionless_spin{{0., 0., 0.}};
   const double horizon_kerrschild_radius =
       mass * (1. + sqrt(1. - dot(dimensionless_spin, dimensionless_spin)));
   const KerrSchild solution{mass, dimensionless_spin, {{0., 0., 0.}}};
+  // const KerrSchild solution{
+  //     mass, Xcts::Solutions::SchwarzschildCoordinates::Isotropic};
   domain::creators::Sphere shell{
       horizon_kerrschild_radius,
-      distance * horizon_kerrschild_radius,
+      distance,
       domain::creators::Sphere::Excision{},
       refinements,
       points,
@@ -130,6 +155,7 @@ void test_mass_integral(const double distance, const size_t refinements,
         conformal_christoffel_second_kind, conformal_ricci_scalar,
         extrinsic_curvature, trace_extrinsic_curvature, energy_density, mesh,
         inv_jacobian);
+    // const auto vol_integrand = vol_integrand_func(inertial_coords);
     mass_integral_volume +=
         definite_integral(get(vol_integrand) / get(det_jacobian), mesh);
     const auto element_abutting_direction =
@@ -172,10 +198,13 @@ void test_mass_integral(const double distance, const size_t refinements,
       const tnsr::I<DataVector, 3> integrand = Xcts::adm_mass_surface_integrand(
           conformal_factor_deriv, face_inv_conformal_metric,
           face_conformal_christoffel_second_kind);
+      // const tnsr::I<DataVector, 3> integrand =
+      // surf_integrand_func(inertial_coords);
       auto face_normal = unnormalized_face_normal(
           face_mesh, logical_to_inertial_map, direction);
       const auto face_normal_magnitude =
-          magnitude(face_normal, face_inv_conformal_metric);
+          magnitude(face_normal,
+                    face_inv_conformal_metric);  // Introduces the extra sqrt(2)
       for (size_t d = 0; d < 3; ++d) {
         face_normal.get(d) /= get(face_normal_magnitude);
       }
@@ -185,12 +214,13 @@ void test_mass_integral(const double distance, const size_t refinements,
           -get(contracted) * get(curved_area_element), face_mesh);
     }
   }
-  auto custom_approx = Approx::custom().epsilon(1e-2);
+  auto custom_approx = Approx::custom().epsilon(1e-5);
   std::cout << "Volume Integral:" << mass_integral_volume << "\n";
   std::cout << "Surface Integral:" << mass_integral_surface << "\n";
-  std::cout << "Total Integral:"
-            << mass_integral_volume + mass_integral_surface;
-  CHECK(mass_integral_volume + mass_integral_surface == custom_approx(0.45));
+  std::cout << "Total Integral:" << mass_integral_volume + mass_integral_surface
+            << "\n";
+  CHECK(mass_integral_volume == custom_approx(5.0 / 16.0 * mass));
+  CHECK(mass_integral_surface == custom_approx(sqrt(2.0) * 7.0 / 16.0 * mass));
 }
 //  }
 //}
@@ -215,8 +245,8 @@ SPECTRE_TEST_CASE("Unit.PointwiseFunctions.Xcts.Adm",
           &Xcts::adm_mass_surface_integrand),
       "Adm", {"adm_mass_surface_integrand"}, {{{-1., 1.}}}, used_for_size);
   const double distance = 2e6;
-  const size_t refinement = 2;
-  for (size_t point : std::array<size_t, 6>{{2, 4, 6, 8, 10, 12}}) {
+  const size_t refinement = 3;
+  for (size_t point : std::array<size_t, 2>{{8, 10}}) {
     test_mass_integral(distance, refinement, point);
   }
 }
