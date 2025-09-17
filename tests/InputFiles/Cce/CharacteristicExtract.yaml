@@ -109,7 +109,7 @@ Cce:
   LMax: 20
   # Probably don't need more than 15 radial grid points, but could increase
   # up to ~20
-  NumberOfRadialPoints: 15
+  NumberOfRadialPoints: 30
   # The maximum ell we use for writing waveform output. While CCE can dump
   # more, you should be cautious with higher modes since mode mixing, truncation
   # error, and systematic numerical effects can have significant contamination
